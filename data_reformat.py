@@ -63,8 +63,8 @@ png_file_name = 'Time_vs_SOC.png'
 png_total_name = 'Daily_SOC.png'
 
 ### Change directories for each time running
-source_folder = "D:/Masters/Simulations/Simulation_1/Inputs/"
-destination_folder = "D:/Masters/Simulations/Simulation_1/Usable_Data/"
+source_folder = "D:/Masters/Simulations/Simulation_2/Inputs/"
+destination_folder = "D:/Masters/Simulations/Simulation_2/Usable_Data/"
 folder_prefix = "Vehicle_" 
 
 ### Box coordinates - Stellenbosch Taxi Rank
@@ -344,7 +344,7 @@ for i in range(1, num_folders + 1):
 print('Reframing data points')
 
         
-destination_folder = "D:/Masters/Simulations/Simulation_1/Usable_Data/"
+destination_folder = "D:/Masters/Simulations/Simulation_2/Usable_Data/"
 days = [str(num).zfill(2) for num in range(1, 32)]  # Days in the month
 
 

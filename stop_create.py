@@ -17,7 +17,7 @@ import sys
 import time
 
 
-source_folder = "D:\Masters\Simulations\Simulation_1\Inputs"
+source_folder = "D:\Masters\Simulations\Simulation_2\Inputs"
 
 
 # Display progress bar for simulation
@@ -80,7 +80,8 @@ for root, dirs, files in os.walk(source_folder):
                         else:
                             save_stop.loc[i] = vehicle_stopped
 
-                    progress_bar(i, len(vehicle_lat), start_time)
+                    if i % 100 == 0:  # Update the progress and elapsed time every 100 iterations
+                        progress_bar(i, len(vehicle_lat), start_time)
 
                 print('\n')    
             

@@ -45,10 +45,11 @@ import sys
 import time
 import math
 import numpy as np
+import re
 
 ### Change directory for each new simulation
-source_folder = 'D:/Masters/Simulations/Simulation_1/Usable_Data/'
-destination_folder = 'D:/Masters/Simulations/Simulation_1/Outputs/'
+source_folder = 'D:/Masters/Simulations/Simulation_2/Usable_Data/'
+destination_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/'
 file_common = 'Vehicle_'
 file_name = 'vehicle_day_sec.csv'
 save_common = 'Day_'
@@ -103,12 +104,13 @@ grid_parameters = {
     'efficiency': 0.88,
     'soc_upper_limit': 80,
     'soc_lower_limit': 0,
-    'home_charge': True, # Set for each sim you wish to desire
+    'home_charge': False, # Set for each sim you wish to desire
     'home_power': 7.2 # [kW]
 }
 
 
 days = [str(num).zfill(2) for num in range(1, 32)]  # Days in the month
+bad_days = [15, 21, 22, 30] # Bad days within the data
 num_vehicles = 17 # Total number of vehicles used in the sim
 
 # length of lists
@@ -510,9 +512,30 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
     plt.savefig(save_path, format = 'svg')
     plt.close()
 
+# Functions for finding and deleting days with bad data
+def extract_day_from_filename(filename):
+    # Implement the regular expression pattern to match the day value.
+    # For example, if the filename format is "Day_01_xxxxxxxxxx", you can extract the day as follows:
+    pattern = r'Day_(\d+)_'
+    match = re.search(pattern, filename)
+    if match:
+        return int(match.group(1))
+    return None
+
+def delete_files_with_bad_days(folder_path, bad_days):
+    for root, _, files in os.walk(folder_path):
+        for filename in files:
+            day = extract_day_from_filename(filename)
+            if day is not None and day in bad_days:
+                file_path = os.path.join(root, filename)
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted: {file_path}")
+                except Exception as e:
+                    print(f"Error deleting {file_path}: {e}")
 
 
-
+"""
 ########################################################################################################################
 ################### Create nescessary original files that the simulation runs off of ###################################
 ########################################################################################################################
@@ -610,7 +633,11 @@ for k in range(0, length_days):  # Cycle through for each day
         # Skip over when the list is empty
         print("Day does not exist. Skipping...")
 
+### Delete bad days of data
+read_directory = destination_folder + original_folder
+delete_files_with_bad_days(read_directory, bad_days)
 
+"""
 
 
 #######################################################################################################################

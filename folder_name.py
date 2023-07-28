@@ -15,8 +15,8 @@ import shutil
 import gzip
 
 ### Change these directories for script usage if a new simulation is being done
-source_folder_1 = "D:\Masters\Chris Data Model\Bus_Day\EV_Simulation\EV_Simulation_Outputs"
-source_folder_2 = "D:\Masters\Chris Data Model\Bus_Day\Mobility_Simulation\FCD_Data"
+source_folder_1 = "D:\Masters\Chris Data Model\Scenario_GoMetro\EV_Simulation\EV_Simulation_Outputs"
+source_folder_2 = "D:\Masters\Chris Data Model\Scenario_GoMetro\Mobility_Simulation\FCD_Data"
 
 destination_folder = "D:\Masters\Simulations\Simulation_2\Inputs"
 
@@ -68,7 +68,7 @@ def decompress_csv_gz_files_recursive(folder_path):
 
 copy_folder_structure(source_folder_1, destination_folder)
 copy_folder_structure(source_folder_2, destination_folder)
-#rename_subfolders_in_path(destination_folder)
+rename_subfolders_in_path(destination_folder)
 decompress_csv_gz_files_recursive(destination_folder)
 
 
