@@ -99,7 +99,7 @@ R_eq = (battery_parameters['M_s'] * battery_parameters['R_cell']) / battery_para
 
 # Grid Model Parameters
 grid_parameters = {
-    'num_chargers': 6,
+    'num_chargers': 2,
     'P_max': 22, # [kW]
     'efficiency': 0.88,
     'soc_upper_limit': 80,
@@ -497,7 +497,7 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
     plt.xlabel('Time of Day')
     plt.ylabel('Power [kW]')
     plt.title('Grid Power per Vehicle for Day_' + day)
-    plt.ylim(0, 170)
+    plt.ylim(0, 20)
     plt.xticks(rotation=45)
 
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
@@ -801,10 +801,16 @@ for m in range(0, length_days):
 #################################################################################################################
 
 
-
 ### Vehicle Succesful Trips for day - was it able to stay above 0%
 # Calculate completion and uncompletion percentages
-completion_percentages = [(vehicle_completed_trips[vehicle] / vehicle_total_trips[vehicle]) * 100 for vehicle in vehicle_total_trips]
+completion_percentages = []
+for vehicle in vehicle_total_trips:
+    if vehicle_total_trips[vehicle] != 0:
+        completion_percentage = (vehicle_completed_trips[vehicle] / vehicle_total_trips[vehicle]) * 100
+    else:
+        completion_percentage = 0
+    completion_percentages.append(completion_percentage)
+
 uncompletion_percentages = [100 - percentage for percentage in completion_percentages]
 
 # Create the figure and axis objects
@@ -891,7 +897,14 @@ plt.savefig(save_path, format = 'svg')
 
 ### Vehicle Valid Trips for next day - was it able to get back to 0%
 # Calculate completion and uncompletion percentages
-completion_percentages = [(vehicle_end_soc[vehicle] / vehicle_total_trips[vehicle]) * 100 for vehicle in vehicle_total_trips]
+completion_percentages = []
+for vehicle in vehicle_total_trips:
+    if vehicle_total_trips[vehicle] != 0:
+        completion_percentage = (vehicle_completed_trips[vehicle] / vehicle_total_trips[vehicle]) * 100
+    else:
+        completion_percentage = 0
+    completion_percentages.append(completion_percentage)
+
 uncompletion_percentages = [100 - percentage for percentage in completion_percentages]
 
 # Create the figure and axis objects
