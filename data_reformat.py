@@ -15,10 +15,10 @@
     This is done to test if indeed the vehicle has driven or if there is bad data that exists. This is is then
     transformed to the following vehicle_day format to be used by sim_charge.
 
-    Time_of_Day | Energy_Consumption    | Latitude  | Longitude | Stop      | 20_Min_Stop   | Hub_Location  | Available_Charging    | HC_Location   | Home_Charging     
-    -------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    (string)    | (float)               | (float)   | (float)   | (boolean) | (boolean)     | (boolean)     | (boolean)             | (boolean)     | (boolean)           
-    [YYYY/MM/DD | [Wh/s]                | [degres]  | [degrees] |           |               |               |                       |               |                   
+    Time_of_Day | Energy_Consumption    | Latitude  | Longitude | Stop      | 20_Min_Stop   | Hub_Location  | Available_Charging    | HC_Location   | Home_Charging |   Distance     
+    --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    (string)    | (float)               | (float)   | (float)   | (boolean) | (boolean)     | (boolean)     | (boolean)             | (boolean)     | (boolean)     |   (float)
+    [YYYY/MM/DD | [Wh/s]                | [degres]  | [degrees] |           |               |               |                       |               |               |   [meters]
       HH:MM:SS]
 
 
@@ -433,6 +433,16 @@ for i in range(1, num_folders + 1):
             vehicle_day['HC_Location'] = vehicle_day[['Latitude', 'Longitude']].apply(lambda x: is_point_at_home(x, most_common_combination), axis=1)
 
             vehicle_day['Home_Charging'] = vehicle_day['HC_Location'] & vehicle_day['20_Min_Stop']
+
+            # Calculate the distance for each row in the DataFrame
+            vehicle_day['Distance'] = 0
+
+            # Calculate distances from the second row to the second last row
+            for i in range(1, len(vehicle_day) - 1):
+                curr_coords = (vehicle_day['Latitude'].iloc[i], vehicle_day['Longitude'].iloc[i])
+                prev_coords = (vehicle_day['Latitude'].iloc[i - 1], vehicle_day['Longitude'].iloc[i - 1])
+                vehicle_day['Distance'].iloc[i] = haversine(curr_coords, prev_coords, unit = 'm')
+
 
             save_path = file_folder_1 + csv_save_name_3
 

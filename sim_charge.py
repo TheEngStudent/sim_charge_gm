@@ -14,7 +14,7 @@
     Vehicle_1   |   Vehicle_2   |   Vehicle_5   |   --------    |   Vehicle_n
     ----------------------------------------------------------------------------
     [ec/soc/    |   [ec/soc/    |   [ec/soc/    |   --------    |   [ec/soc/  
-        cf/ac]  |       cf/ac]  |       cf/ac]  |   --------    |       cf/ac]
+    cf/ac/dis]  |   cf/ac/dis]  |   cf/ac/dis]  |   --------    |   cf/ac/dis]
 
     Where:
         ec == energy consumed
@@ -46,6 +46,7 @@ import time
 import math
 import numpy as np
 import re
+import seaborn as sns
 
 ### Change directory for each new simulation
 source_folder = 'D:/Masters/Simulations/Simulation_2/Usable_Data/'
@@ -64,12 +65,14 @@ charging_flag_folder = 'Charging_Flag/'
 available_charging_folder = 'Available_Charging/'
 grid_power_folder = 'Grid_Power/'
 home_charging_folder = 'Home_Charging/'
+distance_folder = 'Distance/'
 
 file_name_ac = 'Available_Charging'
 file_name_ec = 'Energy_Consumption'
 file_name_cf = 'Charging_Variable'
 file_name_soc = 'SOC'
 file_name_hc = 'Home_Charging'
+file_name_dis = 'Distance'
 
 save_name_ac = 'available_charging.csv'
 save_name_ec = 'energy_consumption.csv'
@@ -79,6 +82,7 @@ save_name_gp = 'grid_power.csv'
 save_name_charger = 'charger_association.csv'
 save_name_V_b = 'battery_voltage.csv'
 save_name_I_b = 'battery_current.csv'
+save_name_dis = 'distance.csv'
 
 ### Constants for simulation
 # Battery Model Parameters
@@ -99,7 +103,7 @@ R_eq = (battery_parameters['M_s'] * battery_parameters['R_cell']) / battery_para
 
 # Grid Model Parameters
 grid_parameters = {
-    'num_chargers': 2,
+    'num_chargers': 6,
     'P_max': 22, # [kW]
     'efficiency': 0.88,
     'soc_upper_limit': 80,
@@ -153,6 +157,8 @@ day_total_trips = {save_common + day: 0 for day in days}
 day_end_soc = {save_common + day: 0 for day in days}
 day_completed_trips = {save_common + day: 0 for day in days}
 
+day_steady_state_trips = {save_common + day: {} for day in days}
+day_zero_steady_state_trips = {save_common + day: {} for day in days}
 
 ### Colour dictionary for vehicle tracking through each graph
 
@@ -187,7 +193,11 @@ def progress_bar(current, total, start_time):
 
 # Main algorithm for calculating
 def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, start_time, battery_capacity, 
-                    V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive):
+                    V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc):
+    
+    # Initialise starting SOC
+    for vehicle_column_name in og_soc.columns:
+        og_soc.iloc[0][vehicle_column_name] = start_vehicle_soc[vehicle_column_name]
     
     # Iterate over each row of og_ec
     for index in range(1, len(og_ec)):
@@ -268,9 +278,11 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
         ### Calculate battery characteristics
         for col_name in og_soc.columns:
 
-            # Check if vehicle has gone below 20% for the day
+            # Check if vehicle has gone below 0% for the day
             if og_soc.loc[index - 1, col_name] <= grid_parameters['soc_lower_limit']:
                 vehicle_valid_drive[col_name] = False
+                if grid_parameters['home_charge'] == False:
+                    og_cf.loc[index, col_name] = 2
 
             # Calculate open circuit voltage
             V_oc.loc[index, col_name] = battery_parameters['a_v']*( (og_soc.loc[index - 1, col_name]/100)*battery_parameters['E_nom'] ) + battery_parameters['b_v']
@@ -345,8 +357,8 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                 if CP_flag[col_name] == 0:
                     CP_flag[col_name] = 1
             
-            # If vehicle is charging at home cf == -1
-            else: 
+            # If vehicle is charging at home
+            elif og_cf.loc[index, col_name] == -1: 
                 # Vehicle is charging at constant power (CP)
                 if CP_flag[col_name] == 1:
                     grid_power.loc[index, col_name] = grid_parameters['home_power']*1000
@@ -381,7 +393,10 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
 
                 if og_soc.loc[index, col_name] > 100:
                     og_soc.loc[index, col_name] = 100
-            
+            # Vehicle is not charging and flat, og_cf == 2
+            else:
+                og_soc.loc[index, col_name] = 0
+                grid_power.loc[index, col_name] = 0
 
         if index % 100 == 0:  # Update the progress and elapsed time every 100 iterations
             progress_bar(index, total_items, start_time)
@@ -457,6 +472,10 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
 
     plt.legend(loc = 'upper center', ncol = 4)
     plt.subplots_adjust(bottom = 0.2)
+
+    # Adding the solid black line at y = 0
+    plt.axhline(y=0, color='black', linewidth=plt.gca().spines['bottom'].get_linewidth())
+
 
     save_path = save_folder + 'Day_' + day + '_SOC.png'
     plt.savefig(save_path)
@@ -547,6 +566,7 @@ for k in range(0, length_days):  # Cycle through for each day
     data_list_ec = []  # create empty list to combine data at the end
     data_list_ac = []
     data_list_hc = []
+    data_list_dis = []
 
     name_list = []  # create empty list for valid vehicles
 
@@ -567,6 +587,7 @@ for k in range(0, length_days):  # Cycle through for each day
             data_list_ec.append(df['Energy_Consumption'])
             data_list_ac.append(df['Available_Charging'])
             data_list_hc.append(df['Home_Charging'])
+            data_list_dis.append(df['Distance'])
             name_list.append(str(i))
         else:
             # File path does not exist, skip
@@ -608,6 +629,18 @@ for k in range(0, length_days):  # Cycle through for each day
         save_path = save_folder + save_name
         create_folder(save_folder)
         combined_data_hc.to_csv(save_path, index=False)
+
+        ### For Distance data
+        # Perform functions when the list is not empty
+        combined_data_dis = pd.concat(data_list_dis, axis=1)
+        vehicle_columns = [file_common + name for name in name_list]
+        combined_data_dis.columns = vehicle_columns
+        # Save the combined DataFrame to a CSV file
+        save_name = save_common + days[k] + '_' + file_name_dis + file_suffix
+        save_folder = destination_folder + original_folder + distance_folder
+        save_path = save_folder + save_name
+        create_folder(save_folder)
+        combined_data_dis.to_csv(save_path, index=False)
 
         ### For starting off SOC data
         combined_data_soc = combined_data_ec.copy()
@@ -660,12 +693,14 @@ for m in range(0, length_days):
     read_name_soc = save_common + days[m] + '_' + file_name_soc + file_suffix
     read_name_cf = save_common + days[m] + '_' + file_name_cf + file_suffix
     read_name_hc = save_common + days[m] + '_' + file_name_hc + file_suffix
+    read_name_dis = save_common + days[m] + '_' + file_name_dis + file_suffix
 
     read_path_ec = destination_folder + original_folder + energy_consumption_folder + read_name_ec
     read_path_ac = destination_folder + original_folder + available_charging_folder + read_name_ac
     read_path_soc = destination_folder + original_folder + soc_folder + read_name_soc
     read_path_cf = destination_folder + original_folder + charging_flag_folder + read_name_cf
     read_path_hc = destination_folder + original_folder + home_charging_folder + read_name_hc
+    read_path_dis = destination_folder + original_folder + distance_folder + read_name_dis
 
     # If file exists for one day then that day exists
     if os.path.exists(read_path_ec):
@@ -681,25 +716,29 @@ for m in range(0, length_days):
         og_soc = pd.read_csv(read_path_soc)
         og_cf = pd.read_csv(read_path_cf)
         og_hc = pd.read_csv(read_path_hc)
+        og_dis = pd.read_csv(read_path_dis)
 
-        # Get the number of total trips for the day
-        day_total_trips[save_common + days[m]] = len(og_soc.columns)
-        num_vehicles_day = len(og_soc.columns)
+        ### No home charging scenario
+        if grid_parameters['home_charge'] == False:
+            num_vehicles_day = len(og_soc.columns)
+            # Initialise counting steady states
+            new_dictionary = {column: 1 for column in og_soc.columns}
+            day_steady_state_trips[save_common + days[m]] = new_dictionary
 
-        # Add to the total number of trips Vehicle x is supossed to complete
-        for vehicle_trip in og_soc.columns:
+            new_dictionary = {column: False for column in og_soc.columns}
+            day_zero_steady_state_trips[save_common + days[m]] = new_dictionary
 
-            vehicle_total_trips[vehicle_trip] = vehicle_total_trips[vehicle_trip] + 1
 
-            ### Check to see if vehicle is valid for driving day and drop the columns if not
-            # if vehicle_valid_drive[vehicle_trip] == False:
-            #     og_ec = og_ec.drop(vehicle_trip, axis=1)
-            #     og_ac = og_ac.drop(vehicle_trip, axis=1)
-            #     og_soc = og_soc.drop(vehicle_trip, axis=1)
-            #     og_cf = og_cf.drop(vehicle_trip, axis=1)
-            #     og_hc = og_hc.drop(vehicle_trip, axis=1) 
+        ### No home charging scenario
+        if grid_parameters['home_charge'] == True:
+            # Get the number of total trips for the day
+            day_total_trips[save_common + days[m]] = len(og_soc.columns)
+            num_vehicles_day = len(og_soc.columns)
 
-    
+            # Add to the total number of trips Vehicle x is supossed to complete
+            for vehicle_trip in og_soc.columns:
+                vehicle_total_trips[vehicle_trip] = vehicle_total_trips[vehicle_trip] + 1
+
         # If there is vehicles to simulate, then simulate
         if not og_ac.empty:
 
@@ -716,70 +755,188 @@ for m in range(0, length_days):
             V_oc = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
             V_oc_eq = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
 
-            ### Re-initialise each vehicle to constant power charging
-            CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
 
-            priority_vehicles = []
-            
-            print(f'Day {days[m]} Simulating')
+            ### No home charging scenario
+            if grid_parameters['home_charge'] == False:
 
-            start_time = time.time()
+                start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
+                end_vehicle_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
+                steady_state_condition = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)} # Assume steady state has not been reached
+                steady_state_reached = False
+                iteration = 1
 
-            ### Perform different functions depending on if home_charging or not
-            ### Simulate actual data
-            simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, start_time, battery_capacity,
-                            V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive) # Does the actual simulating of vehicles
+                ### Simulate until steady is reached
+                while not steady_state_reached:
 
-            ### See how many vehicles have completed their trips
-            for vehicle_name in og_soc.columns:
-                # Did the vehicle not cross the 0% boundary
-                if vehicle_valid_drive[vehicle_name] == True:
-                    vehicle_completed_trips[vehicle_name] = vehicle_completed_trips[vehicle_name] + 1
-                    day_completed_trips[save_common + days[m]] = day_completed_trips[save_common + days[m]] + 1
+                    save_folder_2 = save_folder + 'Iteration_' + str(iteration) + '/'
 
-                if og_soc.iloc[-1][vehicle_name] >= 90:
-                    vehicle_end_soc[vehicle_name] = vehicle_end_soc[vehicle_name] + 1
-                    day_end_soc[save_common + days[m]] = day_end_soc[save_common + days[m]] + 1
-                
+                    create_folder(save_folder_2) # Create iteration folder
+
+                    ### Re-initialise each vehicle to constant power charging
+                    CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
+                    priority_vehicles = []
+                    print(f'Day {days[m]} Simulating - I_{iteration}')
+                    start_time = time.time()
+
+                    ### Simulate actual data
+                    simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, start_time, battery_capacity,
+                                    V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
+                    #print('\n')
+
+                    count_steady_states = 0
+                    ### See how many vehicles have completed their trips
+                    for vehicle_name in og_soc.columns:
+
+                        # Did the vehicle not cross the 0% boundary
+                        if vehicle_valid_drive[vehicle_name] == True:
+                            # TODO: Update this code to count correctly. Probably checking to see if the previous value is false or not
+                            day_steady_state_trips[save_common + days[m]][vehicle_name] = day_steady_state_trips[save_common + days[m]][vehicle_name] + 1
+
+                        end_vehicle_soc[vehicle_name] = og_soc.iloc[-1][vehicle_name]
+                        
+
+                        if end_vehicle_soc[vehicle_name] <= 0:
+                            day_zero_steady_state_trips[save_common + days[m]][vehicle_name] = True
+
+                        ### Is the end value within 2 percent of the starting value, then steady state has been reached
+                        if start_vehicle_soc[vehicle_name] == 0 and end_vehicle_soc[vehicle_name] == 0:
+                            percentage_difference = 0
+                        else:
+                            percentage_difference = (abs(start_vehicle_soc[vehicle_name] - end_vehicle_soc[vehicle_name]) / start_vehicle_soc[vehicle_name])*100
+                        #print(percentage_difference)
+
+                        if percentage_difference <= 2:
+                            steady_state_condition[vehicle_name] = True
+
+                        #print(steady_state_condition)
+
+                        if steady_state_condition[vehicle_name] == True:
+                            count_steady_states = count_steady_states + 1
+
+                        start_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
+
+                    if count_steady_states == len(og_soc.columns):
+                        steady_state_reached = True
+
                     
-            ### All vehicles become valid again to drive
-            vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
+                    #print(count_steady_states)
+                    #print(steady_state_reached)
 
-            ### Prepare for plotting
-            timedelta_index = pd.to_timedelta(integer_list, unit='s')
-            base_date = pd.to_datetime('04:00:00')
-            timedelta_index = base_date + timedelta_index
+                    ### Prepare for plotting
+                    timedelta_index = pd.to_timedelta(integer_list, unit='s')
+                    base_date = pd.to_datetime('04:00:00')
+                    timedelta_index = base_date + timedelta_index
 
-            ### Plot and save individual vehicle graphs
-            print('\nSaving graphs')
-            save_individual_graphs(og_soc, V_b, save_folder, days[m], timedelta_index)
-            save_complete_graphs(og_soc, grid_power, days[m], save_folder, timedelta_index, num_vehicles_day)
+                    ### Plot and save individual vehicle graphs
+                    print('\nSaving graphs')
+                    save_individual_graphs(og_soc, V_b, save_folder_2, days[m], timedelta_index)
+                    save_complete_graphs(og_soc, grid_power, days[m], save_folder_2, timedelta_index, num_vehicles_day)
+                        
+                    ### Save dataframes
+                    print('Saving files')
+                    save_path = save_folder_2 + save_name_ec
+                    og_ec.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_cf
+                    og_cf.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_ac
+                    og_ac.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_soc
+                    og_soc.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_dis
+                    og_dis.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_gp
+                    grid_power.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_charger
+                    charger.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_V_b
+                    V_b.to_csv(save_path, index=False)
+
+                    save_path = save_folder_2 + save_name_I_b
+                    I_b.to_csv(save_path, index=False)
+
+                    if steady_state_reached == True: # If steady state has been reached, then stop simulating
+                        break
+
+                    iteration = iteration + 1
                 
-            ### Save dataframes
-            print('Saving files')
-            save_path = save_folder + save_name_ec
-            og_ec.to_csv(save_path, index=False)
+                ### All vehicles become valid again to drive
+                vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
 
-            save_path = save_folder + save_name_cf
-            og_cf.to_csv(save_path, index=False)
 
-            save_path = save_folder + save_name_ac
-            og_ac.to_csv(save_path, index=False)
+            ### Home charging scenario
+            if grid_parameters['home_charge'] == True:
 
-            save_path = save_folder + save_name_soc
-            og_soc.to_csv(save_path, index=False)
+                start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
 
-            save_path = save_folder + save_name_gp
-            grid_power.to_csv(save_path, index=False)
+                ### Re-initialise each vehicle to constant power charging
+                CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
+                priority_vehicles = []               
+                print(f'Day {days[m]} Simulating')
+                start_time = time.time()
+                
+                ### Simulate actual data
+                simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, start_time, battery_capacity,
+                                V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
 
-            save_path = save_folder + save_name_charger
-            charger.to_csv(save_path, index=False)
+                ### See how many vehicles have completed their trips
+                for vehicle_name in og_soc.columns:
+                    # Did the vehicle not cross the 0% boundary
+                    if vehicle_valid_drive[vehicle_name] == True:
+                        vehicle_completed_trips[vehicle_name] = vehicle_completed_trips[vehicle_name] + 1
+                        day_completed_trips[save_common + days[m]] = day_completed_trips[save_common + days[m]] + 1
 
-            save_path = save_folder + save_name_V_b
-            V_b.to_csv(save_path, index=False)
+                    if og_soc.iloc[-1][vehicle_name] >= 100:
+                        vehicle_end_soc[vehicle_name] = vehicle_end_soc[vehicle_name] + 1
+                        day_end_soc[save_common + days[m]] = day_end_soc[save_common + days[m]] + 1
+                    
+                ### All vehicles become valid again to drive
+                vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
 
-            save_path = save_folder + save_name_I_b
-            I_b.to_csv(save_path, index=False)
+                ### Prepare for plotting
+                timedelta_index = pd.to_timedelta(integer_list, unit='s')
+                base_date = pd.to_datetime('04:00:00')
+                timedelta_index = base_date + timedelta_index
+
+                ### Plot and save individual vehicle graphs
+                print('\nSaving graphs')
+                save_individual_graphs(og_soc, V_b, save_folder, days[m], timedelta_index)
+                save_complete_graphs(og_soc, grid_power, days[m], save_folder, timedelta_index, num_vehicles_day)
+                    
+                ### Save dataframes
+                print('Saving files')
+                save_path = save_folder + save_name_ec
+                og_ec.to_csv(save_path, index=False)
+
+                save_path = save_folder + save_name_cf
+                og_cf.to_csv(save_path, index=False)
+
+                save_path = save_folder + save_name_ac
+                og_ac.to_csv(save_path, index=False)
+
+                save_path = save_folder + save_name_soc
+                og_soc.to_csv(save_path, index=False)
+
+                save_path = save_folder_2 + save_name_dis
+                og_dis.to_csv(save_path, index=False)
+
+                save_path = save_folder + save_name_gp
+                grid_power.to_csv(save_path, index=False)
+
+                save_path = save_folder + save_name_charger
+                charger.to_csv(save_path, index=False)
+
+                save_path = save_folder + save_name_V_b
+                V_b.to_csv(save_path, index=False)
+
+                save_path = save_folder + save_name_I_b
+                I_b.to_csv(save_path, index=False)
 
         else:
             print(f'Day {days[m]} Simulating')
@@ -796,194 +953,5 @@ for m in range(0, length_days):
         print(f'Day {days[m]} does not exist')
     
 
-#################################################################################################################
-########## Save and calculate the percentage completions for the vehicles as well as the days####################
-#################################################################################################################
 
-
-### Vehicle Succesful Trips for day - was it able to stay above 0%
-# Calculate completion and uncompletion percentages
-completion_percentages = []
-for vehicle in vehicle_total_trips:
-    if vehicle_total_trips[vehicle] != 0:
-        completion_percentage = (vehicle_completed_trips[vehicle] / vehicle_total_trips[vehicle]) * 100
-    else:
-        completion_percentage = 0
-    completion_percentages.append(completion_percentage)
-
-uncompletion_percentages = [100 - percentage for percentage in completion_percentages]
-
-# Create the figure and axis objects
-fig, ax = plt.subplots()
-x = np.arange(len(vehicle_total_trips)) * 1.7
-bar_width = 1
-bar1 = ax.bar(x, completion_percentages, bar_width, label = 'Completed Trips', color = '#FFA500')
-bar2 = ax.bar(x, uncompletion_percentages, bar_width, bottom=completion_percentages, label = 'Uncompleted Trips', color = '#ADD8E6')
-
-for rect, completion_percentage in zip(bar1 + bar2, completion_percentages):
-    height = rect.get_height()
-    if completion_percentage > 0:
-            if completion_percentage < 10:
-                ax.text(rect.get_x() + rect.get_width() / 2, height + 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'bottom', fontsize = 8, rotation = 90)
-            else:
-                ax.text(rect.get_x() + rect.get_width() / 2, height / 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'center', fontsize = 8, rotation = 90)
-
-ax.set_xticks(x)
-ax.set_xticklabels(range(1, num_vehicles + 1), fontsize = 6)
-
-ax.set_ylabel('Percentage [%]')
-ax.set_ylim(0, 115)
-
-ax.set_title('Vehicle_Day Completion Rate')
-ax.set_xlabel('Vehicle')
-plt.legend(loc = 'upper center', ncol = 2)
-
-plt.tight_layout()
-
-save_path = destination_folder + scenario_folder + 'Vehicle_Day_Trip_Completion.png'
-plt.savefig(save_path)
-# Save the plot to a specific location as a svg
-save_path = destination_folder + scenario_folder + 'Vehicle_Day_Trip_Completion.svg'
-plt.savefig(save_path, format = 'svg')
-
-
-
-### Succesful Day Trips - did all the vehicles of that day stay above 0%
-# Calculate completion and uncompletion percentages
-completion_percentages = [(day_completed_trips[vehicle] / day_total_trips[vehicle]) * 100 for vehicle in day_total_trips]
-uncompletion_percentages = [100 - percentage for percentage in completion_percentages]
-
-# Create the figure and axis objects
-fig, ax = plt.subplots()
-x = np.arange(len(day_total_trips)) * 3
-bar_width = 2
-bar1 = ax.bar(x, completion_percentages, bar_width, label = 'Completed Trips', color = '#FFA500')
-bar2 = ax.bar(x, uncompletion_percentages, bar_width, bottom=completion_percentages, label = 'Uncompleted Trips', color = '#ADD8E6')
-
-for rect, completion_percentage, vehicle_name in zip(bar1 + bar2, completion_percentages, day_total_trips.keys()):
-    if day_exists[vehicle_name]:
-        height = rect.get_height()
-        if completion_percentage > 0:
-            if completion_percentage < 10:
-                ax.text(rect.get_x() + rect.get_width() / 2, height + 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'bottom', fontsize = 8, rotation = 90)
-            else:
-                ax.text(rect.get_x() + rect.get_width() / 2, height / 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'center', fontsize = 8, rotation = 90)
-
-
-for i, exists in enumerate(day_exists.values()):
-    if not exists:
-        bar1[i].set_height(0)
-        bar2[i].set_height(0)
-
-ax.set_xticks(x)
-ax.set_xticklabels(range(1, len(days) + 1), fontsize = 6)
-
-ax.set_ylabel('Percentage [%]')
-ax.set_xlabel('Day')
-ax.set_ylim(0, 115)
-
-ax.set_title('Daily Completion Rate')
-plt.legend(loc = 'upper center', ncol = 2)
-
-plt.tight_layout()
-
-save_path = destination_folder + scenario_folder + 'Daily_Valid_Trip_Completion.png'
-plt.savefig(save_path)
-# Save the plot to a specific location as a svg
-save_path = destination_folder + scenario_folder + 'Daily_Valid_Trip_Completion.svg'
-plt.savefig(save_path, format = 'svg')
-            
-
-
-### Vehicle Valid Trips for next day - was it able to get back to 0%
-# Calculate completion and uncompletion percentages
-completion_percentages = []
-for vehicle in vehicle_total_trips:
-    if vehicle_total_trips[vehicle] != 0:
-        completion_percentage = (vehicle_completed_trips[vehicle] / vehicle_total_trips[vehicle]) * 100
-    else:
-        completion_percentage = 0
-    completion_percentages.append(completion_percentage)
-
-uncompletion_percentages = [100 - percentage for percentage in completion_percentages]
-
-# Create the figure and axis objects
-fig, ax = plt.subplots()
-x = np.arange(len(vehicle_total_trips)) * 1.7
-bar_width = 1
-bar1 = ax.bar(x, completion_percentages, bar_width, label = 'Valid', color = '#FFA500')
-bar2 = ax.bar(x, uncompletion_percentages, bar_width, bottom=completion_percentages, label = 'Invalid', color = '#ADD8E6')
-
-for rect, completion_percentage in zip(bar1 + bar2, completion_percentages):
-    height = rect.get_height()
-    if completion_percentage > 0:
-            if completion_percentage < 10:
-                ax.text(rect.get_x() + rect.get_width() / 2, height + 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'bottom', fontsize = 8, rotation = 90)
-            else:
-                ax.text(rect.get_x() + rect.get_width() / 2, height / 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'center', fontsize = 8, rotation = 90)
-
-ax.set_xticks(x)
-ax.set_xticklabels(range(1, num_vehicles + 1), fontsize = 6)
-
-ax.set_ylabel('Percentage [%]')
-ax.set_ylim(0, 115)
-
-ax.set_title('Vehicle_Day Valid Completion Rate')
-ax.set_xlabel('Vehicle')
-plt.legend(loc = 'upper center', ncol = 2)
-
-plt.tight_layout()
-
-save_path = destination_folder + scenario_folder + 'Vehicle_Day_Valid_Completion.png'
-plt.savefig(save_path)
-# Save the plot to a specific location as a svg
-save_path = destination_folder + scenario_folder + 'Vehicle_Day_Valid_Completion.svg'
-plt.savefig(save_path, format = 'svg')
-
-
-
-### Valid for next Day Trips - did all the vehicles manage to get to 100% SOC at the end of the day
-# Calculate completion and uncompletion percentages
-completion_percentages = [(day_end_soc[vehicle] / day_total_trips[vehicle]) * 100 for vehicle in day_total_trips]
-uncompletion_percentages = [100 - percentage for percentage in completion_percentages]
-
-# Create the figure and axis objects
-fig, ax = plt.subplots()
-x = np.arange(len(day_total_trips)) * 3
-bar_width = 2
-bar1 = ax.bar(x, completion_percentages, bar_width, label = 'Validity', color = '#FFA500')
-bar2 = ax.bar(x, uncompletion_percentages, bar_width, bottom=completion_percentages, label = 'Invalidity', color = '#ADD8E6')
-
-for rect, completion_percentage, vehicle_name in zip(bar1 + bar2, completion_percentages, day_total_trips.keys()):
-    if day_exists[vehicle_name]:
-        height = rect.get_height()
-        if completion_percentage > 0:
-            if completion_percentage < 10:
-                ax.text(rect.get_x() + rect.get_width() / 2, height + 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'bottom', fontsize = 8, rotation = 90)
-            else:
-                ax.text(rect.get_x() + rect.get_width() / 2, height / 2, f'{completion_percentage:.1f}%', ha = 'center', va = 'center', fontsize = 8, rotation = 90)
-
-
-for i, exists in enumerate(day_exists.values()):
-    if not exists:
-        bar1[i].set_height(0)
-        bar2[i].set_height(0)
-
-ax.set_xticks(x)
-ax.set_xticklabels(range(1, len(days) + 1), fontsize = 6)
-
-ax.set_ylabel('Percentage [%]')
-ax.set_xlabel('Day')
-ax.set_ylim(0, 115)
-
-ax.set_title('Daily Validity Rate')
-plt.legend(loc = 'upper center', ncol = 2)
-
-plt.tight_layout()
-
-save_path = destination_folder + scenario_folder + 'Daily_Valid_Next_Trip.png'
-plt.savefig(save_path)
-# Save the plot to a specific location as a svg
-save_path = destination_folder + scenario_folder + 'Daily_Valid_Next_Trip.svg'
-plt.savefig(save_path, format = 'svg')
         
