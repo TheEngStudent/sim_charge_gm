@@ -47,6 +47,12 @@ import math
 import numpy as np
 import re
 import seaborn as sns
+import concurrent.futures
+import threading
+import queue
+from tqdm import tqdm
+import multiprocessing
+
 
 ### Change directory for each new simulation
 source_folder = 'D:/Masters/Simulations/Simulation_2/Usable_Data/'
@@ -108,7 +114,7 @@ grid_parameters = {
     'efficiency': 0.88,
     'soc_upper_limit': 80,
     'soc_lower_limit': 0,
-    'home_charge': False, # Set for each sim you wish to desire
+    'home_charge': True, # Set for each sim you wish to desire
     'home_power': 7.2 # [kW]
 }
 
@@ -145,7 +151,7 @@ colour_list = [ '#d9ff00',
 color_palette = {'Vehicle_' + str(i): colour_list[i - 1] for i in range(1, num_vehicles + 1)}
 
 ### Dictionary for vehicle valid driving day
-vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
+
 
 day_exists = {save_common + day: True for day in days}
 
@@ -164,6 +170,9 @@ day_zero_steady_state_trips = {save_common + day: {} for day in days}
 
 another_colour = colour_list[17]
 
+# Thread-safe printing using a lock
+print_lock = threading.Lock()
+
 
 ### Functions
 # Count the number of folders
@@ -180,19 +189,25 @@ def create_folder(directory):
     # Create folder if not exist
     if not os.path.exists(directory):
         os.makedirs(directory)
-
-# Display progress bar for simulation
-def progress_bar(current, total, start_time):
-    bar_length = 40
-    filled_length = int(bar_length * current / total)
-    percentage = current / total * 100
-    elapsed_time = int((time.time() - start_time) / 60)  # Calculate elapsed time in minutes
-    bar = '=' * filled_length + '-' * (bar_length - filled_length)
-    sys.stdout.write(f'\r[{bar}] {percentage:.2f}% Elapsed Time: {elapsed_time} minutes')
-    sys.stdout.flush()
-
+"""
+def progress_bar_thread(progress_queue, total_simulations, start_time):
+    while True:
+        try:
+            current, completed_simulations = progress_queue.get(timeout=0.5)
+            elapsed_time = int((time.time() - start_time) / 60)
+            percentage = (completed_simulations / total_simulations) * 100
+            bar_length = 40
+            filled_length = int(bar_length * percentage / 100)
+            bar = '=' * filled_length + '-' * (bar_length - filled_length)
+            with print_lock:
+                sys.stdout.write(f'\r[{bar}] {percentage:.2f}% Elapsed Time: {elapsed_time} minutes')
+                sys.stdout.flush()
+        except queue.Empty:
+            if all(f.done() for f in futures):
+                break
+"""
 # Main algorithm for calculating
-def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, start_time, battery_capacity, 
+def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
                     V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc):
     
     # Initialise starting SOC
@@ -281,8 +296,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
             # Check if vehicle has gone below 0% for the day
             if og_soc.loc[index - 1, col_name] <= grid_parameters['soc_lower_limit']:
                 vehicle_valid_drive[col_name] = False
-                if grid_parameters['home_charge'] == False:
-                    og_cf.loc[index, col_name] = 2
+                og_cf.loc[index, col_name] = 2
 
             # Calculate open circuit voltage
             V_oc.loc[index, col_name] = battery_parameters['a_v']*( (og_soc.loc[index - 1, col_name]/100)*battery_parameters['E_nom'] ) + battery_parameters['b_v']
@@ -398,8 +412,8 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                 og_soc.loc[index, col_name] = 0
                 grid_power.loc[index, col_name] = 0
 
-        if index % 100 == 0:  # Update the progress and elapsed time every 100 iterations
-            progress_bar(index, total_items, start_time)
+        if index % 100 == 0:
+                pbar.update(100)    
 
 
 # Saving graphs functions
@@ -684,8 +698,12 @@ save_folder = destination_folder + scenario_folder
 create_folder(save_folder)
 
 
-### Iterate over each day in the month
-for m in range(0, length_days): 
+### Introduce multithreading to handle 
+
+def simulate_day(m): 
+
+    # Declare variables
+    vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
     
     # Create file paths to read nescessary data
     read_name_ec = save_common + days[m] + '_' + file_name_ec + file_suffix # Day_i_Data.csv
@@ -775,13 +793,17 @@ for m in range(0, length_days):
                     ### Re-initialise each vehicle to constant power charging
                     CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
                     priority_vehicles = []
-                    print(f'Day {days[m]} Simulating - I_{iteration}')
-                    start_time = time.time()
+                    #print(f'Day {days[m]} Simulating - I_{iteration}')
+                    #start_time = time.time()
 
-                    ### Simulate actual data
-                    simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, start_time, battery_capacity,
-                                    V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
-                    #print('\n')
+                    with tqdm(total=86400, desc=f"Day {days[m]} Simulating - I_{iteration}", position=m) as pbar:
+
+                        ### Simulate actual data
+                        simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
+                                        V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
+                        #print('\n')
+
+                    pbar.close()
 
                     count_steady_states = 0
                     ### See how many vehicles have completed their trips
@@ -878,13 +900,17 @@ for m in range(0, length_days):
                 ### Re-initialise each vehicle to constant power charging
                 CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
                 priority_vehicles = []               
-                print(f'Day {days[m]} Simulating')
-                start_time = time.time()
-                
-                ### Simulate actual data
-                simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, start_time, battery_capacity,
-                                V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
+                #print(f'Day {days[m]} Simulating')
+                #start_time = time.time()
 
+                with tqdm(total=86400, desc=f"Day {days[m]} Simulating",position=m) as pbar:
+                
+                    ### Simulate actual data
+                    simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
+                                    V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
+
+
+                pbar.close()
                 ### See how many vehicles have completed their trips
                 for vehicle_name in og_soc.columns:
                     # Did the vehicle not cross the 0% boundary
@@ -923,7 +949,7 @@ for m in range(0, length_days):
                 save_path = save_folder + save_name_soc
                 og_soc.to_csv(save_path, index=False)
 
-                save_path = save_folder_2 + save_name_dis
+                save_path = save_folder + save_name_dis
                 og_dis.to_csv(save_path, index=False)
 
                 save_path = save_folder + save_name_gp
@@ -950,8 +976,30 @@ for m in range(0, length_days):
 
         day_exists[save_common + days[m]] = False
 
-        print(f'Day {days[m]} does not exist')
+        #print(f'Day {days[m]} does not exist')
+
+    return m
     
 
+### Actually run the next day
 
-        
+# Set the multiprocessing start method to 'fork' or 'spawn'
+if __name__ == '__main__':
+    start_method = multiprocessing.get_start_method()
+    if start_method != 'fork' and start_method != 'spawn':
+        multiprocessing.set_start_method('fork')
+
+    # Define the range of days to simulate
+    days_to_simulate = range(0, length_days)
+    num_processes = 4
+
+    # Create a process pool
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
+        # Submit simulations for the days and store the future objects
+        futures = {executor.submit(simulate_day, day): day for day in days_to_simulate}
+
+        # Wait for all simulations to complete
+        for future in concurrent.futures.as_completed(futures):
+            future.result()
+
+    print("All simulations complete.")
