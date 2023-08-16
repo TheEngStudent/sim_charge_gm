@@ -55,6 +55,8 @@ for sce_folder in sce_folders:
     day_subfolders = glob.glob(os.path.join(sce_folder, 'Day*'))
     sce_folder_name = os.path.basename(sce_folder)
 
+    print(sce_folder_name)
+
     ### For each day folder in the SCE folder
     for day_folder in day_subfolders:
 
@@ -234,10 +236,10 @@ for sce_folder in sce_folders:
 
     # Create a histogram for the list below x-axis
     plt.hist(zero_distances_battery, bins=num_bins_2, color='#2D71E6', alpha=0.7, label='0% Steady State - Battery')
-    plt.hist(zero_distances_chargers, bins=num_bins_3, color='#ADD8E6', alpha=0.7, label='0% Steady State - Charger')
+    plt.hist(zero_distances_chargers, bins=num_bins_3, color='#ADD8E6', alpha=0.7, label='0% Steady State - Charging')
 
     plt.title("Distance Distribution for Steady State")
-    plt.xlabel("Distance [km]")
+    plt.xlabel("Distance per Day [km]")
     plt.ylabel("Frequency")
     plt.legend()
 
@@ -288,6 +290,8 @@ for sce_folder in sce_folders:
     all_positive_steady_state = 0
     zero_steady_state_chargers = 0
     zero_steady_state_battery = 0
+
+    print(sce_folder_name)
 
     ### For each day folder in the SCE folder
     for day_folder in day_subfolders:
@@ -365,10 +369,10 @@ for sce_folder in sce_folders:
 
     # Create a histogram for the list below x-axis
     plt.hist(zero_distances_battery, bins=num_bins_3, color='#2D71E6', alpha=0.7, label='Non Steady State - Battery')
-    plt.hist(zero_distances_chargers, bins=num_bins_2, color='#ADD8E6', alpha=0.7, label='Non Steady State - Charger')
+    plt.hist(zero_distances_chargers, bins=num_bins_2, color='#ADD8E6', alpha=0.7, label='Non Steady State - Charging')
 
     plt.title("Distance Distribution for Steady State")
-    plt.xlabel("Distance [km]")
+    plt.xlabel("Distance per Day [km]")
     plt.ylabel("Frequency")
     plt.legend()
 

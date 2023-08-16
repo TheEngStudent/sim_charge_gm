@@ -11,7 +11,8 @@ tasks:
         - This is combined grid power
     Second:
         - Find the maximum power in each day
-        - Plot according to number of chargers
+        - Create box plots
+        - Plot percentage completion for each N chargers with box plots
     Third:
         - Split the power graphs according to depot charging and home charging
         - Plot on the same graph with different colours
@@ -25,14 +26,18 @@ import matplotlib.pyplot as plt
 import re
 import matplotlib.dates as mdates
 import numpy as np
+import natsort
 
 source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/' 
+plt.rcParams['figure.dpi'] = 600
 
 ### Important to note that this is purely done for no Home Charging
 
 ####################################################################################################
+################################## Home Charging = False ###########################################
 ################################ First: Minimum and Maximum ########################################
-###################################################################################################
+####################################################################################################
+
 
 ### Prepare for plotting
 integer_list = list(range(0, 86400))
@@ -53,7 +58,7 @@ colour_list = [ '#d9ff00',
                 '#ff2f00'
              ]
 
-plt.rcParams['figure.dpi'] = 600
+
 
 sce_folders = glob.glob(os.path.join(source_folder, 'SCE*False'))
 
@@ -71,15 +76,24 @@ for sce_folder in sce_folders:
     min_hourly_data = []
 
     for day_subfolder in day_subfolders:
+
+        # Find the lst iteration subfolder
+        iteration_subfolders = natsort.natsorted(glob.glob(os.path.join(day_subfolder, 'Iteration*')))
+        last_iteration_folder = iteration_subfolders[-1]
+
         # Read the 'grid_power' file from each Day subfolder
-        grid_power_file = os.path.join(day_subfolder, 'grid_power.csv')
+        grid_power_file = os.path.join(last_iteration_folder, 'grid_power.csv')
+        soc_file = os.path.join(last_iteration_folder, 'soc.csv')
 
         # Perform your file-reading operations on grid_power_file here
         grid_power = pd.read_csv(grid_power_file)
+        soc_data = pd.read_csv(soc_file)
+
+        total_active_vehicles = (soc_data.iloc[-1] != 0).sum()
 
         grid_sums = grid_power.sum(axis=1)
         grid_sums = grid_sums / 1000
-        grid_vehicle = grid_sums / len(grid_power.columns)
+        grid_vehicle = grid_sums / total_active_vehicles
 
         for i in range(24):
             
@@ -112,11 +126,30 @@ for sce_folder in sce_folders:
 
         max_hourly_data.extend(hourly_values_dict[key][max_location])
 
+    average_hourly_data = []
+
+    for hour_key, arrays_list in hourly_values_dict.items():
+        sum_array = None
+        count = len(arrays_list)
+        
+        for array in arrays_list:
+            if sum_array is None:
+                sum_array = array
+            else:
+                sum_array += array
+
+        average_array = sum_array / count
+        
+        average_hourly_data.extend(average_array)
+
+    average_hourly_data = np.array(average_hourly_data)
 
     # Plot information
     plt.figure()
-    plt.plot(timedelta_index, min_hourly_data, label = 'Minimum Power')
-    plt.plot(timedelta_index, max_hourly_data, label = 'Maximum Power')
+    #plt.plot(timedelta_index, min_hourly_data, label = 'Minimum Power')
+    #plt.plot(timedelta_index, max_hourly_data, label = 'Maximum Power')
+
+    plt.plot(timedelta_index, average_hourly_data, label = 'Average Power')
 
     plt.xticks(rotation=45)
 
@@ -155,11 +188,35 @@ for sce_folder in sce_folders:
 
         max_hourly_data.extend(hourly_values_dict_vehicle[key][max_location])
 
+    average_vehicle_data = []
+
+    for hour_key, arrays_list in hourly_values_dict_vehicle.items():
+        sum_array = None
+        count = len(arrays_list)
+        
+        for array in arrays_list:
+            if np.isnan(array).any():
+                count -= 1  # Reduce the count if array contains NaN
+                continue  # Skip this array and proceed to the next
+            if sum_array is None:
+                sum_array = array
+            else:
+                sum_array += array
+
+        average_array = sum_array / count
+
+        average_vehicle_data.extend(average_array)
+
+    average_vehicle_data = np.array(average_vehicle_data)
+
+
 
     # Plot information
     plt.figure()
-    plt.plot(timedelta_index, min_hourly_data, label = 'Minimum Power per Vehicle')
-    plt.plot(timedelta_index, max_hourly_data, label = 'Maximum Power per Vehicle')
+    #plt.plot(timedelta_index, min_hourly_data, label = 'Minimum Power per Vehicle')
+    #plt.plot(timedelta_index, max_hourly_data, label = 'Maximum Power per Vehicle')
+
+    plt.plot(timedelta_index, average_vehicle_data, label = 'Average Power per Vehicle')
 
     plt.xticks(rotation=45)
 
@@ -168,7 +225,7 @@ for sce_folder in sce_folders:
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
 
-    plt.ylim(0, 20)
+    plt.ylim(0, 30)
     plt.xlabel('Time of Day')
     plt.ylabel('Grid Power [kW]')
     plt.title('Maximum and Minimum Grid Power per Vehicle')
@@ -193,9 +250,10 @@ for sce_folder in sce_folders:
     
 
 
-
+"""
 
 ####################################################################################################
+################################## Home Charging = False ###########################################
 ####################### Second: Maximum Power vs Number of Chargers ################################
 ####################################################################################################
 
@@ -273,3 +331,5 @@ plt.savefig(save_path)
 save_path = source_folder + 'Maximum_Power_Chargers.svg'
 plt.savefig(save_path, format = 'svg')
 plt.close()
+
+"""
