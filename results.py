@@ -32,12 +32,12 @@ plt.rcParams['figure.dpi'] = 600
 
 
 #################################################################################################################
-################################# Scenario for Home Charging = False ############################################
+################################## Distance and Steady State Reached ############################################
 #################################################################################################################
 
 print('Results - No Home Charging')
 
-sce_folders = glob.glob(os.path.join(source_folder, 'SCE*False'))
+sce_folders = glob.glob(os.path.join(source_folder, 'SCE*'))
 
 ### For each SCE folder that has HC = False
 for sce_folder in sce_folders:
@@ -92,10 +92,10 @@ for sce_folder in sce_folders:
                     percentage_difference = 0
                     vehicle_zero_steady_state[column_name] = True
                 else:
-                    percentage_difference = (abs(first_value - last_value) / first_value)*100
+                    percentage_difference = abs(first_value - last_value)
 
                 ### Is the end value within 2 percent of the starting value, then steady state has been reached
-                if percentage_difference <= 2:
+                if percentage_difference <= 1:
 
                     ### If the current value is false, and SS has been reached, then it counts
                     if vehicle_steady_state[column_name] == False:
@@ -148,7 +148,7 @@ for sce_folder in sce_folders:
             positive_steady_state[key] = 0  # Add the missing key with value 0
 
     # Iterate through the keys of positive_steady_state
-    for key in zero_steady_state_chargers.keys():
+    for key in positive_steady_state.keys():
         # Check if the key exists in zero_steady_state
         if key not in zero_steady_state_battery:
             zero_steady_state_battery[key] = 0  # Add the missing key with value 0 
@@ -252,7 +252,7 @@ for sce_folder in sce_folders:
     plt.close()
 
 
-
+"""
 #################################################################################################################
 ################################# Scenario for Home Charging = True #############################################
 #################################################################################################################
@@ -581,3 +581,5 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = sce_folder + '/Daily_Valid_Next_Trip.svg'
     plt.savefig(save_path, format = 'svg')
+    
+    """

@@ -38,10 +38,11 @@ plt.rcParams['figure.dpi'] = 600
 ################################ First: Minimum and Maximum ########################################
 ####################################################################################################
 
+print('No Home Charging Scenarios')
 
 ### Prepare for plotting
-integer_list = list(range(0, 86400))
-timedelta_index = pd.to_timedelta(integer_list, unit='s')
+integer_list = list(range(0, 1440))
+timedelta_index = pd.to_timedelta(integer_list, unit='m')
 base_date = pd.to_datetime('04:00:00')
 timedelta_index = base_date + timedelta_index
 # List to store the corresponding SCE folder names
@@ -62,22 +63,22 @@ colour_list = [ '#d9ff00',
 
 sce_folders = glob.glob(os.path.join(source_folder, 'SCE*False'))
 
+all_day_vehicle_min = []
+all_day_sums_min = []
+
 for sce_folder in sce_folders:
 
     day_subfolders = glob.glob(os.path.join(sce_folder, 'Day*'))
     sce_folder_name = os.path.basename(sce_folder)
 
-    avg_values_per_hour_dict = {}
-    hourly_values_dict = {}
-    avg_values_per_hour_dict_vehicle = {}
-    hourly_values_dict_vehicle = {}
+    print(sce_folder_name)
 
-    max_hourly_data = []
-    min_hourly_data = []
+    all_grid_vehicle_min = []
+    all_grid_sums_min = []
 
     for day_subfolder in day_subfolders:
 
-        # Find the lst iteration subfolder
+        # Find the last iteration subfolder
         iteration_subfolders = natsort.natsorted(glob.glob(os.path.join(day_subfolder, 'Iteration*')))
         last_iteration_folder = iteration_subfolders[-1]
 
@@ -93,67 +94,84 @@ for sce_folder in sce_folders:
 
         grid_sums = grid_power.sum(axis=1)
         grid_sums = grid_sums / 1000
+        grid_sums.index = pd.to_datetime(grid_sums.index, unit = 's')
+        grid_sums_min = grid_sums.resample('T').max()
+        grid_sums_min = grid_sums_min.reset_index(drop=True)
+
         grid_vehicle = grid_sums / total_active_vehicles
-
-        for i in range(24):
-            
-            if i not in avg_values_per_hour_dict:
-                avg_values_per_hour_dict[i] = []
-                hourly_values_dict[i] = []
-                avg_values_per_hour_dict_vehicle[i] = []
-                hourly_values_dict_vehicle[i] = []
-
-            hourly_data = grid_sums[i*3600 : (i+1)*3600]
-            hourly_data_vehicle = grid_vehicle[i*3600 : (i+1)*3600]
-
-            avg_value = sum(hourly_data) / len(hourly_data)
-            avg_value_vehicle = sum(hourly_data_vehicle) / len(hourly_data_vehicle)
-
-            avg_values_per_hour_dict[i].append(avg_value)
-            hourly_values_dict[i].append(hourly_data)
-            avg_values_per_hour_dict_vehicle[i].append(avg_value_vehicle)
-            hourly_values_dict_vehicle[i].append(hourly_data_vehicle)
-
-
-    # Find where the minimum and maximum locations are
-    for key, value_list in avg_values_per_hour_dict.items():
-        # Use the index() method to find the location (index) of the minimum value in the list
-        min_location = value_list.index(min(value_list))
-
-        min_hourly_data.extend(hourly_values_dict[key][min_location])
-
-        max_location = value_list.index(max(value_list))
-
-        max_hourly_data.extend(hourly_values_dict[key][max_location])
-
-    average_hourly_data = []
-
-    for hour_key, arrays_list in hourly_values_dict.items():
-        sum_array = None
-        count = len(arrays_list)
+        grid_vehicle.index = pd.to_datetime(grid_vehicle.index, unit = 's')
+        grid_vehicle_min = grid_vehicle.resample('T').max()
+        grid_vehicle_min = grid_vehicle_min.reset_index(drop=True)
         
-        for array in arrays_list:
-            if sum_array is None:
-                sum_array = array
-            else:
-                sum_array += array
+        all_grid_vehicle_min.append(grid_vehicle_min)
+        all_grid_sums_min.append(grid_sums_min)
 
-        average_array = sum_array / count
-        
-        average_hourly_data.extend(average_array)
+    ### Matrix of 1440x17 created
+    # Per vehicle
+    result_matrix_vehicle = pd.concat(all_grid_vehicle_min, axis=1)
+    na_column_indices = result_matrix_vehicle.columns[result_matrix_vehicle.isna().any()]
 
-    average_hourly_data = np.array(average_hourly_data)
+    result_matrix_vehicle = result_matrix_vehicle.dropna(axis=1)
+ 
+    max_values_array_vehicle = result_matrix_vehicle.max(axis=1).values
+    min_values_array_vehicle = result_matrix_vehicle.min(axis=1).values
+    avg_values_array_vehicle = result_matrix_vehicle.mean(axis=1).values
 
-    # Plot information
+    max_day_array_vehicles = result_matrix_vehicle.max().values
+
+    # Per day
+    result_matrix_sums = pd.concat(all_grid_sums_min, axis=1)
+    result_matrix_sums = result_matrix_sums.drop(na_column_indices, axis=1)
+ 
+    max_values_array_sums = result_matrix_sums.max(axis=1).values
+    min_values_array_sums = result_matrix_sums.min(axis=1).values
+    avg_values_array_sums = result_matrix_sums.mean(axis=1).values
+
+    max_day_array_sums = result_matrix_sums.max().values
+
+
+
+    all_day_vehicle_min.append(max_day_array_vehicles)
+    all_day_sums_min.append(max_day_array_sums)
+
+    print('Saving Graphs')
+
+    ### Plot information for per vehicle data
     plt.figure()
-    #plt.plot(timedelta_index, min_hourly_data, label = 'Minimum Power')
-    #plt.plot(timedelta_index, max_hourly_data, label = 'Maximum Power')
 
-    plt.plot(timedelta_index, average_hourly_data, label = 'Average Power')
+    plt.plot(timedelta_index, avg_values_array_vehicle, label = 'Average Power per Vehicle')
 
     plt.xticks(rotation=45)
 
-    plt.fill_between(timedelta_index, min_hourly_data, max_hourly_data, alpha=0.3)
+    plt.fill_between(timedelta_index, min_values_array_vehicle, max_values_array_vehicle, alpha=0.3)
+
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    plt.ylim(0, 30)
+    plt.xlabel('Time of Day')
+    plt.ylabel('Grid Power [kW]')
+    plt.title('Maximum and Minimum Grid Power per Vehicle')
+    plt.legend()
+
+    plt.subplots_adjust(bottom = 0.2)
+
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle.png'
+    plt.savefig(save_path)
+    # Save the plot to a specific location as a svg
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle.svg'
+    plt.savefig(save_path, format = 'svg')
+
+    plt.close()
+
+    ### Plot information for overall
+    plt.figure()
+
+    plt.plot(timedelta_index, avg_values_array_sums, label = 'Average Power')
+
+    plt.xticks(rotation=45)
+
+    plt.fill_between(timedelta_index, min_values_array_sums, max_values_array_sums, alpha=0.3)
 
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
@@ -174,72 +192,38 @@ for sce_folder in sce_folders:
 
     plt.close()
 
-    max_hourly_data = []
-    min_hourly_data = []
+print('Creating Box Plots')
 
-    # Find where the minimum and maximum locations are
-    for key, value_list in avg_values_per_hour_dict_vehicle.items():
-        # Use the index() method to find the location (index) of the minimum value in the list
-        min_location = value_list.index(min(value_list))
+all_day_vehicle_min = pd.DataFrame(all_day_vehicle_min)
+all_day_sums_min = pd.DataFrame(all_day_sums_min)
 
-        min_hourly_data.extend(hourly_values_dict_vehicle[key][min_location])
+result_box_plot_vehicle = all_day_vehicle_min.T
+result_box_plot_sums = all_day_sums_min.T
 
-        max_location = value_list.index(max(value_list))
+plt.figure()
+# Create a boxplot
+plt.boxplot(result_box_plot_vehicle)
 
-        max_hourly_data.extend(hourly_values_dict_vehicle[key][max_location])
+# Add labels and title
+plt.xlabel('X-axis Label')
+plt.ylabel('Y-axis Label')
+plt.title('Boxplot Example')
 
-    average_vehicle_data = []
+# Show the plot
+plt.show()
 
-    for hour_key, arrays_list in hourly_values_dict_vehicle.items():
-        sum_array = None
-        count = len(arrays_list)
-        
-        for array in arrays_list:
-            if np.isnan(array).any():
-                count -= 1  # Reduce the count if array contains NaN
-                continue  # Skip this array and proceed to the next
-            if sum_array is None:
-                sum_array = array
-            else:
-                sum_array += array
+plt.figure()
+# Create a boxplot
+plt.boxplot(result_box_plot_sums)
 
-        average_array = sum_array / count
+# Add labels and title
+plt.xlabel('X-axis Label')
+plt.ylabel('Y-axis Label')
+plt.title('Boxplot Example')
 
-        average_vehicle_data.extend(average_array)
+# Show the plot
+plt.show()
 
-    average_vehicle_data = np.array(average_vehicle_data)
-
-
-
-    # Plot information
-    plt.figure()
-    #plt.plot(timedelta_index, min_hourly_data, label = 'Minimum Power per Vehicle')
-    #plt.plot(timedelta_index, max_hourly_data, label = 'Maximum Power per Vehicle')
-
-    plt.plot(timedelta_index, average_vehicle_data, label = 'Average Power per Vehicle')
-
-    plt.xticks(rotation=45)
-
-    plt.fill_between(timedelta_index, min_hourly_data, max_hourly_data, alpha=0.3)
-
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
-
-    plt.ylim(0, 30)
-    plt.xlabel('Time of Day')
-    plt.ylabel('Grid Power [kW]')
-    plt.title('Maximum and Minimum Grid Power per Vehicle')
-    plt.legend()
-
-    plt.subplots_adjust(bottom = 0.2)
-
-    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle.png'
-    plt.savefig(save_path)
-    # Save the plot to a specific location as a svg
-    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle.svg'
-    plt.savefig(save_path, format = 'svg')
-
-    plt.close()
         
 
 

@@ -114,7 +114,7 @@ grid_parameters = {
     'efficiency': 0.88,
     'soc_upper_limit': 80,
     'soc_lower_limit': 0,
-    'home_charge': True, # Set for each sim you wish to desire
+    'home_charge': False, # Set for each sim you wish to desire
     'home_power': 7.2 # [kW]
 }
 
@@ -165,7 +165,7 @@ day_completed_trips = {save_common + day: 0 for day in days}
 
 day_steady_state_trips = {save_common + day: {} for day in days}
 day_zero_steady_state_trips = {save_common + day: {} for day in days}
-
+ 
 ### Colour dictionary for vehicle tracking through each graph
 
 another_colour = colour_list[17]
@@ -701,9 +701,6 @@ create_folder(save_folder)
 ### Introduce multithreading to handle 
 
 def simulate_day(m): 
-
-    # Declare variables
-    vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
     
     # Create file paths to read nescessary data
     read_name_ec = save_common + days[m] + '_' + file_name_ec + file_suffix # Day_i_Data.csv
@@ -753,6 +750,13 @@ def simulate_day(m):
             day_total_trips[save_common + days[m]] = len(og_soc.columns)
             num_vehicles_day = len(og_soc.columns)
 
+            # Initialise counting steady states
+            new_dictionary = {column: 1 for column in og_soc.columns}
+            day_steady_state_trips[save_common + days[m]] = new_dictionary
+
+            new_dictionary = {column: False for column in og_soc.columns}
+            day_zero_steady_state_trips[save_common + days[m]] = new_dictionary
+
             # Add to the total number of trips Vehicle x is supossed to complete
             for vehicle_trip in og_soc.columns:
                 vehicle_total_trips[vehicle_trip] = vehicle_total_trips[vehicle_trip] + 1
@@ -760,170 +764,102 @@ def simulate_day(m):
         # If there is vehicles to simulate, then simulate
         if not og_ac.empty:
 
-            # Create nescessary other data frames
-            grid_power = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
+            # Declare variables
+            vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
+            start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
+            end_vehicle_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
+            steady_state_condition = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)} # Assume steady state has not been reached
+            steady_state_reached = False
+            iteration = 1
 
-            charger = pd.DataFrame('', index = range(len(og_ec)), columns = [f'Charger_{w}' for w in range(1, grid_parameters['num_chargers'] + 1)])
+            ### Simulate until steady is reached
+            while not steady_state_reached:
 
-            # Battery characteriistic dataframes
-            V_t = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
-            V_b = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
-            I_t = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
-            I_b = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
-            V_oc = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
-            V_oc_eq = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
+                # Initialise variables
+                # Read the nescessary files
+                og_ec = pd.read_csv(read_path_ec)
+                og_ac = pd.read_csv(read_path_ac)
+                og_soc = pd.read_csv(read_path_soc)
+                og_cf = pd.read_csv(read_path_cf)
+                og_hc = pd.read_csv(read_path_hc)
+                og_dis = pd.read_csv(read_path_dis)
 
+                # Create nescessary other data frames
+                grid_power = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
 
-            ### No home charging scenario
-            if grid_parameters['home_charge'] == False:
+                charger = pd.DataFrame('', index = range(len(og_ec)), columns = [f'Charger_{w}' for w in range(1, grid_parameters['num_chargers'] + 1)])
 
-                start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
-                end_vehicle_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
-                steady_state_condition = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)} # Assume steady state has not been reached
-                steady_state_reached = False
-                iteration = 1
+                # Battery characteriistic dataframes
+                V_t = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
+                V_b = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
+                I_t = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
+                I_b = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
+                V_oc = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
+                V_oc_eq = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
 
-                ### Simulate until steady is reached
-                while not steady_state_reached:
+                save_folder_2 = save_folder + 'Iteration_' + str(iteration) + '/'
 
-                    save_folder_2 = save_folder + 'Iteration_' + str(iteration) + '/'
-
-                    create_folder(save_folder_2) # Create iteration folder
-
-                    ### Re-initialise each vehicle to constant power charging
-                    CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
-                    priority_vehicles = []
-                    #print(f'Day {days[m]} Simulating - I_{iteration}')
-                    #start_time = time.time()
-
-                    with tqdm(total=86400, desc=f"Day {days[m]} Simulating - I_{iteration}", position=m) as pbar:
-
-                        ### Simulate actual data
-                        simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
-                                        V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
-                        #print('\n')
-
-                    pbar.close()
-
-                    count_steady_states = 0
-                    ### See how many vehicles have completed their trips
-                    for vehicle_name in og_soc.columns:
-
-                        # Did the vehicle not cross the 0% boundary
-                        if vehicle_valid_drive[vehicle_name] == True:
-                            # TODO: Update this code to count correctly. Probably checking to see if the previous value is false or not
-                            day_steady_state_trips[save_common + days[m]][vehicle_name] = day_steady_state_trips[save_common + days[m]][vehicle_name] + 1
-
-                        end_vehicle_soc[vehicle_name] = og_soc.iloc[-1][vehicle_name]
-                        
-
-                        if end_vehicle_soc[vehicle_name] <= 0:
-                            day_zero_steady_state_trips[save_common + days[m]][vehicle_name] = True
-
-                        ### Is the end value within 2 percent of the starting value, then steady state has been reached
-                        if start_vehicle_soc[vehicle_name] == 0 and end_vehicle_soc[vehicle_name] == 0:
-                            percentage_difference = 0
-                        else:
-                            percentage_difference = (abs(start_vehicle_soc[vehicle_name] - end_vehicle_soc[vehicle_name]) / start_vehicle_soc[vehicle_name])*100
-                        #print(percentage_difference)
-
-                        if percentage_difference <= 2:
-                            steady_state_condition[vehicle_name] = True
-
-                        #print(steady_state_condition)
-
-                        if steady_state_condition[vehicle_name] == True:
-                            count_steady_states = count_steady_states + 1
-
-                        start_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
-
-                    if count_steady_states == len(og_soc.columns):
-                        steady_state_reached = True
-
-                    
-                    #print(count_steady_states)
-                    #print(steady_state_reached)
-
-                    ### Prepare for plotting
-                    timedelta_index = pd.to_timedelta(integer_list, unit='s')
-                    base_date = pd.to_datetime('04:00:00')
-                    timedelta_index = base_date + timedelta_index
-
-                    ### Plot and save individual vehicle graphs
-                    print('\nSaving graphs')
-                    save_individual_graphs(og_soc, V_b, save_folder_2, days[m], timedelta_index)
-                    save_complete_graphs(og_soc, grid_power, days[m], save_folder_2, timedelta_index, num_vehicles_day)
-                        
-                    ### Save dataframes
-                    print('Saving files')
-                    save_path = save_folder_2 + save_name_ec
-                    og_ec.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_cf
-                    og_cf.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_ac
-                    og_ac.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_soc
-                    og_soc.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_dis
-                    og_dis.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_gp
-                    grid_power.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_charger
-                    charger.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_V_b
-                    V_b.to_csv(save_path, index=False)
-
-                    save_path = save_folder_2 + save_name_I_b
-                    I_b.to_csv(save_path, index=False)
-
-                    if steady_state_reached == True: # If steady state has been reached, then stop simulating
-                        break
-
-                    iteration = iteration + 1
-                
-                ### All vehicles become valid again to drive
-                vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
-
-
-            ### Home charging scenario
-            if grid_parameters['home_charge'] == True:
-
-                start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
+                create_folder(save_folder_2) # Create iteration folder
 
                 ### Re-initialise each vehicle to constant power charging
                 CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
-                priority_vehicles = []               
-                #print(f'Day {days[m]} Simulating')
+                priority_vehicles = []
+                #print(f'Day {days[m]} Simulating - I_{iteration}')
                 #start_time = time.time()
 
-                with tqdm(total=86400, desc=f"Day {days[m]} Simulating",position=m) as pbar:
-                
+                with tqdm(total=86400, desc=f"Day {days[m]} Simulating - I_{iteration}", position=m) as pbar:
+
                     ### Simulate actual data
                     simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
                                     V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
+                    #print('\n')
 
 
                 pbar.close()
+
+                #print(og_soc)
+
+                count_steady_states = 0
                 ### See how many vehicles have completed their trips
                 for vehicle_name in og_soc.columns:
+
+                    #print(vehicle_name)
+
                     # Did the vehicle not cross the 0% boundary
                     if vehicle_valid_drive[vehicle_name] == True:
-                        vehicle_completed_trips[vehicle_name] = vehicle_completed_trips[vehicle_name] + 1
-                        day_completed_trips[save_common + days[m]] = day_completed_trips[save_common + days[m]] + 1
+                        # TODO: Update this code to count correctly. Probably checking to see if the previous value is false or not
+                        day_steady_state_trips[save_common + days[m]][vehicle_name] = day_steady_state_trips[save_common + days[m]][vehicle_name] + 1
 
-                    if og_soc.iloc[-1][vehicle_name] >= 100:
-                        vehicle_end_soc[vehicle_name] = vehicle_end_soc[vehicle_name] + 1
-                        day_end_soc[save_common + days[m]] = day_end_soc[save_common + days[m]] + 1
+                    end_vehicle_soc[vehicle_name] = og_soc.iloc[-1][vehicle_name]
                     
-                ### All vehicles become valid again to drive
-                vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
+
+                    if end_vehicle_soc[vehicle_name] <= 0:
+                        day_zero_steady_state_trips[save_common + days[m]][vehicle_name] = True
+
+                    ### Is the end value within 2 percent of the starting value, then steady state has been reached
+                    if start_vehicle_soc[vehicle_name] == 0 and end_vehicle_soc[vehicle_name] == 0:
+                        percentage_difference = 0
+                    else:
+                        percentage_difference = abs(start_vehicle_soc[vehicle_name] - end_vehicle_soc[vehicle_name])
+                    #print(percentage_difference)
+
+                    if percentage_difference <= 1:
+                        steady_state_condition[vehicle_name] = True
+
+                    #print(steady_state_condition)
+
+                    if steady_state_condition[vehicle_name] == True:
+                        count_steady_states = count_steady_states + 1
+
+                    start_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
+
+                if count_steady_states == len(og_soc.columns):
+                    steady_state_reached = True
+
+                #print(end_vehicle_soc)
+                #print(count_steady_states)
+                #print(steady_state_reached)
+                #print(save_folder_2)
 
                 ### Prepare for plotting
                 timedelta_index = pd.to_timedelta(integer_list, unit='s')
@@ -932,37 +868,46 @@ def simulate_day(m):
 
                 ### Plot and save individual vehicle graphs
                 print('\nSaving graphs')
-                save_individual_graphs(og_soc, V_b, save_folder, days[m], timedelta_index)
-                save_complete_graphs(og_soc, grid_power, days[m], save_folder, timedelta_index, num_vehicles_day)
+                save_individual_graphs(og_soc, V_b, save_folder_2, days[m], timedelta_index)
+                save_complete_graphs(og_soc, grid_power, days[m], save_folder_2, timedelta_index, num_vehicles_day)
                     
                 ### Save dataframes
                 print('Saving files')
-                save_path = save_folder + save_name_ec
+                save_path = save_folder_2 + save_name_ec
                 og_ec.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_cf
+                save_path = save_folder_2 + save_name_cf
                 og_cf.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_ac
+                save_path = save_folder_2 + save_name_ac
                 og_ac.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_soc
+                save_path = save_folder_2 + save_name_soc
                 og_soc.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_dis
+                save_path = save_folder_2 + save_name_dis
                 og_dis.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_gp
+                save_path = save_folder_2 + save_name_gp
                 grid_power.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_charger
+                save_path = save_folder_2 + save_name_charger
                 charger.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_V_b
+                save_path = save_folder_2 + save_name_V_b
                 V_b.to_csv(save_path, index=False)
 
-                save_path = save_folder + save_name_I_b
+                save_path = save_folder_2 + save_name_I_b
                 I_b.to_csv(save_path, index=False)
+
+                if steady_state_reached == True: # If steady state has been reached, then stop simulating
+                    break
+
+                iteration = iteration + 1
+            
+            ### All vehicles become valid again to drive
+            vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
+
 
         else:
             print(f'Day {days[m]} Simulating')
