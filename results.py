@@ -70,6 +70,8 @@ for sce_folder in sce_folders:
         for iteration_folder in iteration_subfolders:
 
             iteration_folder_name = os.path.basename(iteration_folder)
+
+            iteration_number = int(iteration_folder_name.split('_')[-1])
             
             soc_file_path = os.path.join(iteration_folder, 'soc.csv')
             dis_file_path = os.path.join(iteration_folder, 'distance.csv')
@@ -82,57 +84,149 @@ for sce_folder in sce_folders:
             first_row = soc_dataframe.iloc[0]
             last_row = soc_dataframe.iloc[-1]
 
-            for column_name in column_names:
-                # Access values in the column by using soc_dataframe[column_name]
-                first_value = first_row[column_name]
-                last_value = last_row[column_name]
+            if iteration_number == 1:
 
-                ### Calculate the difference in starting and ending value
-                if first_value == 0 and last_value == 0:
-                    percentage_difference = 0
-                    vehicle_zero_steady_state[column_name] = True
-                else:
-                    percentage_difference = abs(first_value - last_value)
+                previous_first_row = first_row
+                previous_last_row = last_row
 
-                ### Is the end value within 2 percent of the starting value, then steady state has been reached
-                if percentage_difference <= 1:
+                for column_name in column_names:
+                    # Access values in the column by using soc_dataframe[column_name]
+                    first_value = first_row[column_name]
+                    last_value = last_row[column_name]
 
-                    ### If the current value is false, and SS has been reached, then it counts
-                    if vehicle_steady_state[column_name] == False:
-                        vehicle_steady_state[column_name] = True
+                    ### Calculate the difference in starting and ending value
+                    if first_value == 0 and last_value == 0:
+                        percentage_difference = 0
+                        vehicle_zero_steady_state[column_name] = True
+                    else:
+                        percentage_difference = abs(first_value - last_value)
 
-                        iteration_number = int(iteration_folder_name.split('_')[-1])
+                    ### Is the end value within 2 percent of the starting value, then steady state has been reached
+                    if percentage_difference <= 1:
 
-                        distance_sum = dis_dataframe[column_name].sum() / 1000 # change meters to kilometers                            
+                        ### If the current value is false, and SS has been reached, then it counts
+                        if vehicle_steady_state[column_name] == False:
+                            vehicle_steady_state[column_name] = True
 
+                            distance_sum = dis_dataframe[column_name].sum() / 1000 # change meters to kilometers                            
 
-                        ### If zero steady state has been reached
-                        if vehicle_zero_steady_state[column_name] == True:
+                            ### If zero steady state has been reached
+                            if vehicle_zero_steady_state[column_name] == True:
 
-                            if iteration_number == 2:
-                                zero_distances_battery.append(distance_sum)
+                                if iteration_number == 2:
+                                    zero_distances_battery.append(distance_sum)
 
-                                if iteration_number not in zero_steady_state_battery:
-                                    zero_steady_state_battery[iteration_number] = 1
+                                    if iteration_number not in zero_steady_state_battery:
+                                        zero_steady_state_battery[iteration_number] = 1
+                                    else:
+                                        zero_steady_state_battery[iteration_number] = zero_steady_state_battery[iteration_number] + 1
                                 else:
-                                    zero_steady_state_battery[iteration_number] = zero_steady_state_battery[iteration_number] + 1
+                                    zero_distances_chargers.append(distance_sum)
+
+                                    if iteration_number not in zero_steady_state_chargers:
+                                        zero_steady_state_chargers[iteration_number] = 1
+                                    else:
+                                        zero_steady_state_chargers[iteration_number] = zero_steady_state_chargers[iteration_number] + 1
+
+                            ### If positive steady state has been reached        
                             else:
-                                zero_distances_chargers.append(distance_sum)
+                                postive_distances.append(distance_sum)
 
-                                if iteration_number not in zero_steady_state_chargers:
-                                    zero_steady_state_chargers[iteration_number] = 1
+                                if iteration_number not in positive_steady_state:
+                                    positive_steady_state[iteration_number] = 1
                                 else:
-                                    zero_steady_state_chargers[iteration_number] = zero_steady_state_chargers[iteration_number] + 1
+                                    positive_steady_state[iteration_number] = positive_steady_state[iteration_number] + 1
+            # For all other iterations
+            else:
+                for column_name in column_names:
+                    # Access values in the column by using soc_dataframe[column_name]
+                    first_value = first_row[column_name]
+                    last_value = last_row[column_name]
 
-                        ### If positive steady state has been reached        
+                    ### Calculate the difference in starting and ending value
+                    if first_value == 0 and last_value == 0:
+                        percentage_difference = 0
+                        vehicle_zero_steady_state[column_name] = True
+                    else:
+                        percentage_difference = abs(first_value - last_value)
+
+                    ### Is the end value within 2 percent of the starting value, then steady state has been reached
+                    if percentage_difference <= 1:
+
+                        ### If the current value is false, and SS has been reached, then it counts
+                        if vehicle_steady_state[column_name] == False:
+                            vehicle_steady_state[column_name] = True
+
+                            distance_sum = dis_dataframe[column_name].sum() / 1000 # change meters to kilometers                            
+
+                            ### If zero steady state has been reached
+                            if vehicle_zero_steady_state[column_name] == True:
+
+                                if iteration_number == 2:
+                                    zero_distances_battery.append(distance_sum)
+
+                                    if iteration_number not in zero_steady_state_battery:
+                                        zero_steady_state_battery[iteration_number] = 1
+                                    else:
+                                        zero_steady_state_battery[iteration_number] = zero_steady_state_battery[iteration_number] + 1
+                                else:
+                                    zero_distances_chargers.append(distance_sum)
+
+                                    if iteration_number not in zero_steady_state_chargers:
+                                        zero_steady_state_chargers[iteration_number] = 1
+                                    else:
+                                        zero_steady_state_chargers[iteration_number] = zero_steady_state_chargers[iteration_number] + 1
+
+                            ### If positive steady state has been reached        
+                            else:
+                                postive_distances.append(distance_sum)
+
+                                if iteration_number not in positive_steady_state:
+                                    positive_steady_state[iteration_number] = 1
+                                else:
+                                    positive_steady_state[iteration_number] = positive_steady_state[iteration_number] + 1
                         else:
+                            ss_percentage_difference = abs(previous_first_row[column_name] - last_row[column_name])
 
-                            postive_distances.append(distance_sum)
+                            if ss_percentage_difference <= 0.5:
+                                if vehicle_steady_state[column_name] == False:
 
-                            if iteration_number not in positive_steady_state:
-                                positive_steady_state[iteration_number] = 1
-                            else:
-                                positive_steady_state[iteration_number] = positive_steady_state[iteration_number] + 1
+                                    vehicle_steady_state[column_name] = True
+                                    
+                                    distance_sum = dis_dataframe[column_name].sum() / 1000 # change meters to kilometers
+
+                                    ### If zero steady state has been reached
+                                    if vehicle_zero_steady_state[column_name] == True:
+
+                                        if iteration_number == 2:
+                                            zero_distances_battery.append(distance_sum)
+
+                                            if iteration_number not in zero_steady_state_battery:
+                                                zero_steady_state_battery[iteration_number] = 1
+                                            else:
+                                                zero_steady_state_battery[iteration_number] = zero_steady_state_battery[iteration_number] + 1
+                                        else:
+                                            zero_distances_chargers.append(distance_sum)
+
+                                            if iteration_number not in zero_steady_state_chargers:
+                                                zero_steady_state_chargers[iteration_number] = 1
+                                            else:
+                                                zero_steady_state_chargers[iteration_number] = zero_steady_state_chargers[iteration_number] + 1
+
+                                    ### If positive steady state has been reached        
+                                    else:
+                                        postive_distances.append(distance_sum)
+
+                                        if iteration_number not in positive_steady_state:
+                                            positive_steady_state[iteration_number] = 1
+                                        else:
+                                            positive_steady_state[iteration_number] = positive_steady_state[iteration_number] + 1
+                                               
+                previous_first_row = first_row
+                previous_last_row = last_row
+                
+
+                
 
         total_vehicle_days = total_vehicle_days + len(soc_dataframe.columns)
 

@@ -109,7 +109,7 @@ R_eq = (battery_parameters['M_s'] * battery_parameters['R_cell']) / battery_para
 
 # Grid Model Parameters
 grid_parameters = {
-    'num_chargers': 6,
+    'num_chargers': 3,
     'P_max': 22, # [kW]
     'efficiency': 0.88,
     'soc_upper_limit': 80,
@@ -150,21 +150,6 @@ colour_list = [ '#d9ff00',
 
 color_palette = {'Vehicle_' + str(i): colour_list[i - 1] for i in range(1, num_vehicles + 1)}
 
-### Dictionary for vehicle valid driving day
-
-
-day_exists = {save_common + day: True for day in days}
-
-vehicle_total_trips = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
-vehicle_end_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
-vehicle_completed_trips = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
-
-day_total_trips = {save_common + day: 0 for day in days}
-day_end_soc = {save_common + day: 0 for day in days}
-day_completed_trips = {save_common + day: 0 for day in days}
-
-day_steady_state_trips = {save_common + day: {} for day in days}
-day_zero_steady_state_trips = {save_common + day: {} for day in days}
  
 ### Colour dictionary for vehicle tracking through each graph
 
@@ -208,7 +193,7 @@ def progress_bar_thread(progress_queue, total_simulations, start_time):
 """
 # Main algorithm for calculating
 def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
-                    V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc):
+                    V_t, V_b, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc):
     
     # Initialise starting SOC
     for vehicle_column_name in og_soc.columns:
@@ -252,8 +237,10 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
 
                 charger.loc[index, column_heading] = vehicle_name
             else: # If vehicle has not been assigned charger, add to list of vehicles needing to be charged
-                if vehicle_name not in priority_vehicles:
-                    priority_vehicles.append(vehicle_name)
+                # only add if vehicle is driving and hasn't gone flat
+                if og_cf.loc[index - 1, vehicle_name] != 2:
+                    if vehicle_name not in priority_vehicles:
+                        priority_vehicles.append(vehicle_name)
 
         # Reorganise pirioty_vehicles to have the lowest SOC at the top
         priority_vehicles = sorted(priority_vehicles, key = lambda x: og_soc.loc[index - 1, x])
@@ -316,10 +303,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                     
                     V_t.loc[index, col_name] = V_b.loc[index, col_name]/battery_parameters['M_s']
 
-                    if V_t.loc[index, col_name] < battery_parameters['V_max']:
-                        # Calculate battery charging current
-                        I_b.loc[index, col_name] = ( V_b.loc[index, col_name] - V_oc_eq.loc[index, col_name] ) / R_eq
-                    else:
+                    if V_t.loc[index, col_name] > battery_parameters['V_max']:
                         # Vehcile is no longer in constant power charging, but now constant voltage charging
                         CP_flag[col_name] = 0    
 
@@ -332,9 +316,6 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                     I_b.loc[index, col_name] = ( battery_parameters['M_s']*battery_parameters['V_max'] - V_oc_eq.loc[index, col_name] ) / R_eq
 
                     grid_power.loc[index, col_name] = ( battery_parameters['M_s']*battery_parameters['V_max']*I_b.loc[index, col_name] ) / grid_parameters['efficiency']
-
-                # Calculate cell current for next charging opportunity
-                I_t.loc[index, col_name] = I_b.loc[index, col_name] / battery_parameters['M_p']
 
                 # Update SOC for charging
                 og_soc.loc[index, col_name] = og_soc.loc[index - 1, col_name] + (((grid_power.loc[index, col_name])/3600)/battery_capacity)*100
@@ -382,10 +363,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                     
                     V_t.loc[index, col_name] = V_b.loc[index, col_name]/battery_parameters['M_s']
 
-                    if V_t.loc[index, col_name] < battery_parameters['V_max']:
-                        # Calculate battery charging current
-                        I_b.loc[index, col_name] = ( V_b.loc[index, col_name] - V_oc_eq.loc[index, col_name] ) / R_eq
-                    else:
+                    if V_t.loc[index, col_name] > battery_parameters['V_max']:
                         # Vehcile is no longer in constant power charging, but now constant voltage charging
                         CP_flag[col_name] = 0    
 
@@ -398,9 +376,6 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                     I_b.loc[index, col_name] = ( battery_parameters['M_s']*battery_parameters['V_max'] - V_oc_eq.loc[index, col_name] ) / R_eq
 
                     grid_power.loc[index, col_name] = ( battery_parameters['M_s']*battery_parameters['V_max']*I_b.loc[index, col_name] ) / grid_parameters['efficiency']
-
-                # Calculate cell current for next charging opportunity
-                I_t.loc[index, col_name] = I_b.loc[index, col_name] / battery_parameters['M_p']
 
                 # Update SOC for charging
                 og_soc.loc[index, col_name] = og_soc.loc[index - 1, col_name] + (((grid_power.loc[index, col_name])/3600)/battery_capacity)*100
@@ -733,33 +708,8 @@ def simulate_day(m):
         og_hc = pd.read_csv(read_path_hc)
         og_dis = pd.read_csv(read_path_dis)
 
-        ### No home charging scenario
-        if grid_parameters['home_charge'] == False:
-            num_vehicles_day = len(og_soc.columns)
-            # Initialise counting steady states
-            new_dictionary = {column: 1 for column in og_soc.columns}
-            day_steady_state_trips[save_common + days[m]] = new_dictionary
-
-            new_dictionary = {column: False for column in og_soc.columns}
-            day_zero_steady_state_trips[save_common + days[m]] = new_dictionary
-
-
-        ### No home charging scenario
-        if grid_parameters['home_charge'] == True:
-            # Get the number of total trips for the day
-            day_total_trips[save_common + days[m]] = len(og_soc.columns)
-            num_vehicles_day = len(og_soc.columns)
-
-            # Initialise counting steady states
-            new_dictionary = {column: 1 for column in og_soc.columns}
-            day_steady_state_trips[save_common + days[m]] = new_dictionary
-
-            new_dictionary = {column: False for column in og_soc.columns}
-            day_zero_steady_state_trips[save_common + days[m]] = new_dictionary
-
-            # Add to the total number of trips Vehicle x is supossed to complete
-            for vehicle_trip in og_soc.columns:
-                vehicle_total_trips[vehicle_trip] = vehicle_total_trips[vehicle_trip] + 1
+        
+        num_vehicles_day = len(og_soc.columns)
 
         # If there is vehicles to simulate, then simulate
         if not og_ac.empty:
@@ -769,6 +719,10 @@ def simulate_day(m):
             start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
             end_vehicle_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
             steady_state_condition = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)} # Assume steady state has not been reached
+
+            previous_start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
+            previous_end_vehicle_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
+
             steady_state_reached = False
             iteration = 1
 
@@ -792,7 +746,6 @@ def simulate_day(m):
                 # Battery characteriistic dataframes
                 V_t = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
                 V_b = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
-                I_t = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
                 I_b = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
                 V_oc = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
                 V_oc_eq = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
@@ -811,7 +764,7 @@ def simulate_day(m):
 
                     ### Simulate actual data
                     simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
-                                    V_t, V_b, I_t, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
+                                    V_t, V_b, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
                     #print('\n')
 
 
@@ -823,18 +776,7 @@ def simulate_day(m):
                 ### See how many vehicles have completed their trips
                 for vehicle_name in og_soc.columns:
 
-                    #print(vehicle_name)
-
-                    # Did the vehicle not cross the 0% boundary
-                    if vehicle_valid_drive[vehicle_name] == True:
-                        # TODO: Update this code to count correctly. Probably checking to see if the previous value is false or not
-                        day_steady_state_trips[save_common + days[m]][vehicle_name] = day_steady_state_trips[save_common + days[m]][vehicle_name] + 1
-
                     end_vehicle_soc[vehicle_name] = og_soc.iloc[-1][vehicle_name]
-                    
-
-                    if end_vehicle_soc[vehicle_name] <= 0:
-                        day_zero_steady_state_trips[save_common + days[m]][vehicle_name] = True
 
                     ### Is the end value within 2 percent of the starting value, then steady state has been reached
                     if start_vehicle_soc[vehicle_name] == 0 and end_vehicle_soc[vehicle_name] == 0:
@@ -845,6 +787,17 @@ def simulate_day(m):
 
                     if percentage_difference <= 1:
                         steady_state_condition[vehicle_name] = True
+                    else:
+                        if iteration == 1:
+                            previous_end_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
+                        else:
+                            ss_percentage_difference = abs(previous_start_vehicle_soc[vehicle_name] - end_vehicle_soc[vehicle_name])
+
+                            if ss_percentage_difference <= 0.5:
+                                steady_state_condition[vehicle_name] = True
+                            
+                            previous_end_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
+                            previous_start_vehicle_soc[vehicle_name] = start_vehicle_soc[vehicle_name]
 
                     #print(steady_state_condition)
 
@@ -913,13 +866,6 @@ def simulate_day(m):
             print(f'Day {days[m]} Simulating')
             print('No vehicles to simulate')
 
-
-    # If day does not exist
-    else:
-
-        day_total_trips[save_common + days[m]] = 1
-
-        day_exists[save_common + days[m]] = False
 
         #print(f'Day {days[m]} does not exist')
 
