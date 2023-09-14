@@ -50,6 +50,7 @@ import matplotlib.pyplot as plt
 import os
 import shutil
 from haversine import haversine
+from scipy.stats import mode
 
 ### Constants
 battery_capacity = 70 #kWh
@@ -59,6 +60,7 @@ file_name_3 = 'stop_time.csv'
 csv_save_name_1 = 'final_sec.csv'
 csv_save_name_2 = 'final_min.csv'
 csv_save_name_3 = 'vehicle_day_sec.csv'
+csv_save_name_4 = 'vehicle_day_min.csv'
 png_file_name = 'Time_vs_SOC.png'
 png_total_name = 'Daily_SOC.png'
 
@@ -167,7 +169,7 @@ def is_point_at_home(row, most_common):
     distance = haversine((target_latitude, target_longitude), (point_latitude, point_longitude), unit = 'm')
     return distance <= 150  
 
-
+"""
 ### Create output folders to save everything to
 os.makedirs(destination_folder, exist_ok=True)  # Create the destination folder if it doesn't exist
 copy_folder_structure(source_folder, destination_folder)
@@ -335,7 +337,7 @@ for i in range(1, num_folders + 1):
     plt.savefig(png_total_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-
+"""
 #################################################################################################
 ################ Reframe each vehicle to start from 04:00:00 an end at 03:59:59 #################
 #################################################################################################
@@ -401,11 +403,15 @@ for i in range(1, num_folders + 1):
 
                 day_1_filtered = day_1[day_1['Time_of_Day'].dt.time >= pd.to_datetime('04:00:00').time()]
 
+                first_date = day_1_filtered['Time_of_Day'].iloc[0].date()
+
                 last_values = day_1_filtered.iloc[-1]
                 day_2_filtered = pd.DataFrame([last_values] * total_shift)
+                
 
                 # Add the time column to the filled DataFrame starting at the specified time
                 day_2_filtered['Time_of_Day'] = pd.date_range(start = '00:00:00', periods = total_shift, freq = 'S')
+                day_2_filtered['Time_of_Day'] = day_2_filtered['Time_of_Day'].apply(lambda x: x.replace(year=first_date.year, month=first_date.month, day=first_date.day))
             
             ### Create the new vehiclee day
             vehicle_day = pd.concat([day_1_filtered, day_2_filtered])
@@ -446,7 +452,43 @@ for i in range(1, num_folders + 1):
 
             save_path = file_folder_1 + csv_save_name_3
 
+            print('Saving secondly data')
+
             vehicle_day.to_csv(save_path, index=False)
+
+
+            # Create minutely version of the data
+            vehicle_day_min = vehicle_day.copy()
+            vehicle_day_min['Time_of_Day'] = pd.to_datetime(vehicle_day_min['Time_of_Day'])
+            vehicle_day_min.set_index('Time_of_Day', inplace=True)
+
+            # Resample the DataFrame
+            vehicle_day_min = vehicle_day_min.resample('1Min').agg({
+                'Energy_Consumption': 'sum', 
+                'Latitude': lambda x: x.mode().iloc[0],  
+                'Longitude': lambda x: x.mode().iloc[0],  
+                'Stopped': lambda x: x.mode().iloc[0],  
+                '20_Min_Stop': lambda x: x.mode().iloc[0],  
+                'Hub_Location': lambda x: x.mode().iloc[0],  
+                'Available_Charging': lambda x: x.mode().iloc[0],  
+                'HC_Location': lambda x: x.mode().iloc[0],  
+                'Home_Charging': lambda x: x.mode().iloc[0],  
+                'Distance': 'sum'
+            })
+
+            # Reset the index
+            vehicle_day_min.reset_index(inplace=True)
+
+            first_240_rows = vehicle_day_min.iloc[:240]
+            vehicle_day_min.drop(vehicle_day_min.index[:240], inplace=True)
+            vehicle_day_min = vehicle_day_min.append(first_240_rows)
+            vehicle_day_min.reset_index(drop=True, inplace=True)
+
+            print('Saving minutely data')
+
+            save_path = file_folder_1 + csv_save_name_4
+            vehicle_day_min.to_csv(save_path, index=False)
+
         else:
             print(f'{file_folder_1} does not exist')
 

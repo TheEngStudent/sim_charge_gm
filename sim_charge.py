@@ -59,6 +59,7 @@ source_folder = 'D:/Masters/Simulations/Simulation_2/Usable_Data/'
 destination_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/'
 file_common = 'Vehicle_'
 file_name = 'vehicle_day_sec.csv'
+file_name_min = 'vehicle_day_min.csv'
 save_common = 'Day_'
 file_suffix = '.csv'
 
@@ -109,12 +110,12 @@ R_eq = (battery_parameters['M_s'] * battery_parameters['R_cell']) / battery_para
 
 # Grid Model Parameters
 grid_parameters = {
-    'num_chargers': 3,
+    'num_chargers': 7,
     'P_max': 22, # [kW]
     'efficiency': 0.88,
     'soc_upper_limit': 80,
     'soc_lower_limit': 0,
-    'home_charge': False, # Set for each sim you wish to desire
+    'home_charge': True, # Set for each sim you wish to desire
     'home_power': 7.2 # [kW]
 }
 
@@ -126,7 +127,8 @@ num_vehicles = 17 # Total number of vehicles used in the sim
 # length of lists
 length_days = len(days)
 
-integer_list = list(range(0, 86400))
+# TODO: update this for secondly data
+integer_list = list(range(0, 1440))
 total_items = len(integer_list)
 
 colour_list = [ '#d9ff00',
@@ -318,7 +320,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                     grid_power.loc[index, col_name] = ( battery_parameters['M_s']*battery_parameters['V_max']*I_b.loc[index, col_name] ) / grid_parameters['efficiency']
 
                 # Update SOC for charging
-                og_soc.loc[index, col_name] = og_soc.loc[index - 1, col_name] + (((grid_power.loc[index, col_name])/3600)/battery_capacity)*100
+                og_soc.loc[index, col_name] = og_soc.loc[index - 1, col_name] + (((grid_power.loc[index, col_name])/60)/battery_capacity)*100 # TODO chage back to 3600 for secondly data
 
                 if og_soc.loc[index, col_name] > 100:
                     og_soc.loc[index, col_name] = 100
@@ -378,7 +380,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                     grid_power.loc[index, col_name] = ( battery_parameters['M_s']*battery_parameters['V_max']*I_b.loc[index, col_name] ) / grid_parameters['efficiency']
 
                 # Update SOC for charging
-                og_soc.loc[index, col_name] = og_soc.loc[index - 1, col_name] + (((grid_power.loc[index, col_name])/3600)/battery_capacity)*100
+                og_soc.loc[index, col_name] = og_soc.loc[index - 1, col_name] + (((grid_power.loc[index, col_name])/60)/battery_capacity)*100 # TODO chage back to 3600 for secondly data
 
                 if og_soc.loc[index, col_name] > 100:
                     og_soc.loc[index, col_name] = 100
@@ -387,8 +389,9 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                 og_soc.loc[index, col_name] = 0
                 grid_power.loc[index, col_name] = 0
 
-        if index % 100 == 0:
-                pbar.update(100)    
+        # TODO: update this to 100 for secondly data
+        if index % 10 == 0:
+                pbar.update(10)    
 
 
 # Saving graphs functions
@@ -543,11 +546,11 @@ def delete_files_with_bad_days(folder_path, bad_days):
                     print(f"Error deleting {file_path}: {e}")
 
 
-"""
+
 ########################################################################################################################
 ################### Create nescessary original files that the simulation runs off of ###################################
 ########################################################################################################################
-
+"""
 num_folders = count_folders(source_folder)
 
 for k in range(0, length_days):  # Cycle through for each day
@@ -568,7 +571,7 @@ for k in range(0, length_days):  # Cycle through for each day
 
         if os.path.exists(sub_sub_path):
             # Create path to read file
-            full_path = sub_sub_path + file_name
+            full_path = sub_sub_path + file_name_min  # TODO change back to file_name for secondly data
 
             # File path exists, read the file
             df = pd.read_csv(full_path)
@@ -659,8 +662,8 @@ for k in range(0, length_days):  # Cycle through for each day
 read_directory = destination_folder + original_folder
 delete_files_with_bad_days(read_directory, bad_days)
 
-"""
 
+"""
 
 #######################################################################################################################
 ############################################ Main simulating code #####################################################
@@ -717,11 +720,9 @@ def simulate_day(m):
             # Declare variables
             vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
             start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
-            end_vehicle_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
-            steady_state_condition = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)} # Assume steady state has not been reached
 
-            previous_start_vehicle_soc = {'Vehicle_' + str(i): 100 for i in range(1, num_vehicles + 1)}
-            previous_end_vehicle_soc = {'Vehicle_' + str(i): 0 for i in range(1, num_vehicles + 1)}
+            vehicle_steady_state = {col: False for col in og_soc.columns}
+            steady_state_soc = pd.DataFrame(100, index = [1], columns=og_soc.columns)
 
             steady_state_reached = False
             iteration = 1
@@ -760,7 +761,8 @@ def simulate_day(m):
                 #print(f'Day {days[m]} Simulating - I_{iteration}')
                 #start_time = time.time()
 
-                with tqdm(total=86400, desc=f"Day {days[m]} Simulating - I_{iteration}", position=m) as pbar:
+                # TODO: change back to 86400 for secondly data
+                with tqdm(total=1440, desc=f"Day {days[m]} Simulating - I_{iteration}", position=m) as pbar:
 
                     ### Simulate actual data
                     simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
@@ -772,42 +774,50 @@ def simulate_day(m):
 
                 #print(og_soc)
 
-                count_steady_states = 0
+                steady_state_soc = steady_state_soc.append(og_soc.iloc[-1], ignore_index=True)
+
+                total_length = len(steady_state_soc)
+
+                max_mask = iteration // 2
+
+                if max_mask != 0:
+
+                    # check for each size of the mask. The max mask size can only be half of the total number of rows
+                    for k in range(0, max_mask + 1):
+
+                        if k != 0:
+
+                            begin_start_row = total_length - k
+                            begin_end_row = total_length - 1
+
+                            end_start_row = total_length - 2*k 
+                            end_end_row = total_length - k - 1
+
+                            # cycle through each vehicle and check
+                            for vehicle_name in steady_state_soc.columns:
+
+                                if vehicle_steady_state[vehicle_name] == False:
+
+                                    first_values = np.array(steady_state_soc.loc[begin_start_row:begin_end_row, vehicle_name].to_list())
+
+                                    end_values = np.array(steady_state_soc.loc[end_start_row:end_end_row, vehicle_name].to_list())
+
+                                    differences = np.abs(first_values - end_values)
+
+                                    if np.all(differences <= 1):
+                                        vehicle_steady_state[vehicle_name] = True
+
+
+                if all(value for value in vehicle_steady_state.values()):
+                    steady_state_reached = True
+
+                vehicle_steady_state = {col: False for col in og_soc.columns}
+
                 ### See how many vehicles have completed their trips
                 for vehicle_name in og_soc.columns:
 
-                    end_vehicle_soc[vehicle_name] = og_soc.iloc[-1][vehicle_name]
+                    start_vehicle_soc[vehicle_name] = og_soc.iloc[-1][vehicle_name]
 
-                    ### Is the end value within 2 percent of the starting value, then steady state has been reached
-                    if start_vehicle_soc[vehicle_name] == 0 and end_vehicle_soc[vehicle_name] == 0:
-                        percentage_difference = 0
-                    else:
-                        percentage_difference = abs(start_vehicle_soc[vehicle_name] - end_vehicle_soc[vehicle_name])
-                    #print(percentage_difference)
-
-                    if percentage_difference <= 1:
-                        steady_state_condition[vehicle_name] = True
-                    else:
-                        if iteration == 1:
-                            previous_end_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
-                        else:
-                            ss_percentage_difference = abs(previous_start_vehicle_soc[vehicle_name] - end_vehicle_soc[vehicle_name])
-
-                            if ss_percentage_difference <= 0.5:
-                                steady_state_condition[vehicle_name] = True
-                            
-                            previous_end_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
-                            previous_start_vehicle_soc[vehicle_name] = start_vehicle_soc[vehicle_name]
-
-                    #print(steady_state_condition)
-
-                    if steady_state_condition[vehicle_name] == True:
-                        count_steady_states = count_steady_states + 1
-
-                    start_vehicle_soc[vehicle_name] = end_vehicle_soc[vehicle_name]
-
-                if count_steady_states == len(og_soc.columns):
-                    steady_state_reached = True
 
                 #print(end_vehicle_soc)
                 #print(count_steady_states)
@@ -815,7 +825,7 @@ def simulate_day(m):
                 #print(save_folder_2)
 
                 ### Prepare for plotting
-                timedelta_index = pd.to_timedelta(integer_list, unit='s')
+                timedelta_index = pd.to_timedelta(integer_list, unit='m') # TODO: change back to s for secondly data
                 base_date = pd.to_datetime('04:00:00')
                 timedelta_index = base_date + timedelta_index
 
@@ -861,6 +871,31 @@ def simulate_day(m):
             ### All vehicles become valid again to drive
             vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
 
+            ### Save steady-state SOC
+            plt.figure(figsize = (8, 5))
+
+            for col in steady_state_soc.columns:
+                plt.plot(steady_state_soc.index, steady_state_soc[col], color = color_palette[col], linestyle='-', label=col)
+
+
+            plt.xticks(steady_state_soc.index)
+            plt.ylim(-20, 140)
+
+            plt.axhline(y=0, color='black', linewidth=plt.gca().spines['bottom'].get_linewidth())
+
+            plt.xlabel('Number of Iterations')
+            plt.ylabel('SOC')
+            plt.title('Steady State of SOC')
+
+            plt.legend(loc = 'upper center', ncol = 4)
+
+            save_path = save_folder + 'Steady_State_SOC.png'
+            plt.savefig(save_path)
+            # Save the plot to a specific location as a svg
+            save_path = save_folder + 'Steady_State_SOC.svg'
+            plt.savefig(save_path, format = 'svg')
+            plt.close()
+
 
         else:
             print(f'Day {days[m]} Simulating')
@@ -883,7 +918,7 @@ if __name__ == '__main__':
     # Define the range of days to simulate
     days_to_simulate = range(0, length_days)
     num_processes = 4
-
+         
     # Create a process pool
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_processes) as executor:
         # Submit simulations for the days and store the future objects

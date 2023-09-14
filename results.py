@@ -42,11 +42,13 @@ sce_folders = glob.glob(os.path.join(source_folder, 'SCE*'))
 ### For each SCE folder that has HC = False
 for sce_folder in sce_folders:
 
-    positive_steady_state = {}
-    zero_steady_state_battery = {}
-    zero_steady_state_chargers = {}
+    positive_steady_state = 0
+    positive_steady_state_oscilation = 0
+    zero_steady_state_battery = 0
+    zero_steady_state_chargers = 0
 
     postive_distances = []
+    postive_distances_oscilation = []
     zero_distances_battery = []
     zero_distances_chargers = []
 
@@ -65,12 +67,12 @@ for sce_folder in sce_folders:
 
         vehicle_steady_state = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)}
         vehicle_zero_steady_state = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)}
+        vehicle_iteration_steady_state = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)}
         
         ### For each iteration in the day folder
         for iteration_folder in iteration_subfolders:
 
             iteration_folder_name = os.path.basename(iteration_folder)
-
             iteration_number = int(iteration_folder_name.split('_')[-1])
             
             soc_file_path = os.path.join(iteration_folder, 'soc.csv')
@@ -79,254 +81,105 @@ for sce_folder in sce_folders:
             soc_dataframe = pd.read_csv(soc_file_path)
             dis_dataframe = pd.read_csv(dis_file_path)
 
-            column_names = soc_dataframe.columns.tolist()
-            
-            first_row = soc_dataframe.iloc[0]
-            last_row = soc_dataframe.iloc[-1]
 
+            ### Determine if steady state is reached
             if iteration_number == 1:
+                steady_state_soc = pd.DataFrame(100, index = [1], columns=soc_dataframe.columns)
+            if iteration_number == 2:
+                columns_with_zero = soc_dataframe.columns[(soc_dataframe.iloc[0] == 0) & (soc_dataframe.iloc[-1] == 0)].tolist()
 
-                previous_first_row = first_row
-                previous_last_row = last_row
+                for col in columns_with_zero:
+                    vehicle_zero_steady_state[col] = True
 
-                for column_name in column_names:
-                    # Access values in the column by using soc_dataframe[column_name]
-                    first_value = first_row[column_name]
-                    last_value = last_row[column_name]
+            steady_state_soc = steady_state_soc.append(soc_dataframe.iloc[-1], ignore_index=True)
 
-                    ### Calculate the difference in starting and ending value
-                    if first_value == 0 and last_value == 0:
-                        percentage_difference = 0
-                        vehicle_zero_steady_state[column_name] = True
-                    else:
-                        percentage_difference = abs(first_value - last_value)
+        # Only evaluating on the last iteration because that is when everything reached steady state
+        total_length = len(steady_state_soc)
 
-                    ### Is the end value within 2 percent of the starting value, then steady state has been reached
-                    if percentage_difference <= 1:
+        max_mask = iteration_number // 2
 
-                        ### If the current value is false, and SS has been reached, then it counts
-                        if vehicle_steady_state[column_name] == False:
-                            vehicle_steady_state[column_name] = True
+        if max_mask != 0:
 
-                            distance_sum = dis_dataframe[column_name].sum() / 1000 # change meters to kilometers                            
+            # check for each size of the mask. The max mask size can only be half of the total number of rows
+            for k in range(0, max_mask + 1):
 
-                            ### If zero steady state has been reached
-                            if vehicle_zero_steady_state[column_name] == True:
+                if k != 0:
 
-                                if iteration_number == 2:
-                                    zero_distances_battery.append(distance_sum)
+                    begin_start_row = total_length - k
+                    begin_end_row = total_length - 1
 
-                                    if iteration_number not in zero_steady_state_battery:
-                                        zero_steady_state_battery[iteration_number] = 1
+                    end_start_row = total_length - 2*k 
+                    end_end_row = total_length - k - 1
+
+                    # cycle through each vehicle and check
+                    for vehicle_name in steady_state_soc.columns:
+
+                        if vehicle_steady_state[vehicle_name] == False:
+
+                            first_values = np.array(steady_state_soc.loc[begin_start_row:begin_end_row, vehicle_name].to_list())
+
+                            end_values = np.array(steady_state_soc.loc[end_start_row:end_end_row, vehicle_name].to_list())
+
+                            differences = np.abs(first_values - end_values)
+
+                            if np.all(differences <= 1):
+                                vehicle_steady_state[vehicle_name] = True
+                                distance_sum = dis_dataframe[vehicle_name].sum() / 1000
+
+                                if all(val == 0 for val in first_values) and all(val == 0 for val in end_values):
+                                    ### Add steady state success to output
+                                    if vehicle_zero_steady_state[vehicle_name] == True:
+                                        zero_distances_battery.append(distance_sum)
+                                        zero_steady_state_battery = zero_steady_state_battery + 1
                                     else:
-                                        zero_steady_state_battery[iteration_number] = zero_steady_state_battery[iteration_number] + 1
+                                        zero_distances_chargers.append(distance_sum)
+                                        zero_steady_state_chargers = zero_steady_state_chargers + 1
+
+                                ### If positive steady state has been reached        
                                 else:
-                                    zero_distances_chargers.append(distance_sum)
-
-                                    if iteration_number not in zero_steady_state_chargers:
-                                        zero_steady_state_chargers[iteration_number] = 1
-                                    else:
-                                        zero_steady_state_chargers[iteration_number] = zero_steady_state_chargers[iteration_number] + 1
-
-                            ### If positive steady state has been reached        
-                            else:
-                                postive_distances.append(distance_sum)
-
-                                if iteration_number not in positive_steady_state:
-                                    positive_steady_state[iteration_number] = 1
-                                else:
-                                    positive_steady_state[iteration_number] = positive_steady_state[iteration_number] + 1
-            # For all other iterations
-            else:
-                for column_name in column_names:
-                    # Access values in the column by using soc_dataframe[column_name]
-                    first_value = first_row[column_name]
-                    last_value = last_row[column_name]
-
-                    ### Calculate the difference in starting and ending value
-                    if first_value == 0 and last_value == 0:
-                        percentage_difference = 0
-                        vehicle_zero_steady_state[column_name] = True
-                    else:
-                        percentage_difference = abs(first_value - last_value)
-
-                    ### Is the end value within 2 percent of the starting value, then steady state has been reached
-                    if percentage_difference <= 1:
-
-                        ### If the current value is false, and SS has been reached, then it counts
-                        if vehicle_steady_state[column_name] == False:
-                            vehicle_steady_state[column_name] = True
-
-                            distance_sum = dis_dataframe[column_name].sum() / 1000 # change meters to kilometers                            
-
-                            ### If zero steady state has been reached
-                            if vehicle_zero_steady_state[column_name] == True:
-
-                                if iteration_number == 2:
-                                    zero_distances_battery.append(distance_sum)
-
-                                    if iteration_number not in zero_steady_state_battery:
-                                        zero_steady_state_battery[iteration_number] = 1
-                                    else:
-                                        zero_steady_state_battery[iteration_number] = zero_steady_state_battery[iteration_number] + 1
-                                else:
-                                    zero_distances_chargers.append(distance_sum)
-
-                                    if iteration_number not in zero_steady_state_chargers:
-                                        zero_steady_state_chargers[iteration_number] = 1
-                                    else:
-                                        zero_steady_state_chargers[iteration_number] = zero_steady_state_chargers[iteration_number] + 1
-
-                            ### If positive steady state has been reached        
-                            else:
-                                postive_distances.append(distance_sum)
-
-                                if iteration_number not in positive_steady_state:
-                                    positive_steady_state[iteration_number] = 1
-                                else:
-                                    positive_steady_state[iteration_number] = positive_steady_state[iteration_number] + 1
-                        else:
-                            ss_percentage_difference = abs(previous_first_row[column_name] - last_row[column_name])
-
-                            if ss_percentage_difference <= 0.5:
-                                if vehicle_steady_state[column_name] == False:
-
-                                    vehicle_steady_state[column_name] = True
-                                    
-                                    distance_sum = dis_dataframe[column_name].sum() / 1000 # change meters to kilometers
-
-                                    ### If zero steady state has been reached
-                                    if vehicle_zero_steady_state[column_name] == True:
-
-                                        if iteration_number == 2:
-                                            zero_distances_battery.append(distance_sum)
-
-                                            if iteration_number not in zero_steady_state_battery:
-                                                zero_steady_state_battery[iteration_number] = 1
-                                            else:
-                                                zero_steady_state_battery[iteration_number] = zero_steady_state_battery[iteration_number] + 1
-                                        else:
-                                            zero_distances_chargers.append(distance_sum)
-
-                                            if iteration_number not in zero_steady_state_chargers:
-                                                zero_steady_state_chargers[iteration_number] = 1
-                                            else:
-                                                zero_steady_state_chargers[iteration_number] = zero_steady_state_chargers[iteration_number] + 1
-
-                                    ### If positive steady state has been reached        
-                                    else:
+                                    # See which number steady state was reached
+                                    if k <= 1:
                                         postive_distances.append(distance_sum)
+                                        positive_steady_state = positive_steady_state + 1
+                                    else:
+                                        postive_distances_oscilation.append(distance_sum)
+                                        positive_steady_state_oscilation = positive_steady_state_oscilation + 1
+                                        
 
-                                        if iteration_number not in positive_steady_state:
-                                            positive_steady_state[iteration_number] = 1
-                                        else:
-                                            positive_steady_state[iteration_number] = positive_steady_state[iteration_number] + 1
-                                               
-                previous_first_row = first_row
-                previous_last_row = last_row
+            vehicle_steady_state = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)}
                 
-
-                
-
         total_vehicle_days = total_vehicle_days + len(soc_dataframe.columns)
 
     print(f"Total Vehicle Days: {total_vehicle_days}")
 
-    
-
-    ### Check that all the keys exist
-    # Iterate through the keys of zero_steady_state
-    for key in zero_steady_state_chargers.keys():
-        # Check if the key exists in positive_steady_state
-        if key not in positive_steady_state:
-            positive_steady_state[key] = 0  # Add the missing key with value 0
-
-    # Iterate through the keys of positive_steady_state
-    for key in positive_steady_state.keys():
-        # Check if the key exists in zero_steady_state
-        if key not in zero_steady_state_battery:
-            zero_steady_state_battery[key] = 0  # Add the missing key with value 0 
-    
-    # Iterate through the keys of positive_steady_state
-    for key in positive_steady_state.keys():
-        # Check if the key exists in zero_steady_state
-        if key not in zero_steady_state_chargers:
-            zero_steady_state_chargers[key] = 0  # Add the missing key with value 0 
-
-    ### Rearrange all the values to numerical order
-    zero_steady_state_chargers = dict(sorted(zero_steady_state_chargers.items()))
-    zero_steady_state_battery = dict(sorted(zero_steady_state_battery.items()))
-    positive_steady_state = dict(sorted(positive_steady_state.items()))
-
-    ### Get total of each vehicle days for steady state
-    steady_state_sum = 0
-    zero_steady_state_sum_battery = 0
-    zero_steady_state_sum_chargers = 0
-
-    for value in zero_steady_state_battery.values():
-        zero_steady_state_sum_battery += value
-
-    for value in positive_steady_state.values():
-        steady_state_sum += value
-
-    for value in zero_steady_state_chargers.values():
-        zero_steady_state_sum_chargers += value
-
-    print(f"Total Positive Steady State: {steady_state_sum}")
-    print(f"Total Zero Steady State Batteries: {zero_steady_state_sum_battery}")
-    print(f"Total Zero Steady State Chargers: {zero_steady_state_sum_chargers}")           
+    print(f"Total Positive Steady State: {positive_steady_state}")
+    print(f"Total Positive Steady State - Oscilations: {positive_steady_state_oscilation}")
+    print(f"Total Zero Steady State - Battery: {zero_steady_state_battery}")
+    print(f"Total Zero Steady State - Charging: {zero_steady_state_chargers}")           
 
     print("Saving Graphs")
 
-    # Extract values and frequencies for both datasets
-    values = list(positive_steady_state.keys())
-    frequencies1 = list(positive_steady_state.values())
-    frequencies2 = list(zero_steady_state_battery.values())
-    frequencies3 = list(zero_steady_state_chargers.values())
 
-    plt.figure()
-    # Create a bar plot for the first dataset
-    plt.bar(values, frequencies1, color='#FFA500', label='Positive Steady State')
-
-    # Plot the second dataset as negative frequencies, effectively below the x-axis#ADD8E6
-    plt.bar(values, [-freq for freq in frequencies2], color='#2D71E6', label='0% Steady State - Battery')
-    plt.bar(values, [-freq for freq in frequencies3], color='#ADD8E6', label='0% Steady State - Charger')
-
-    # Add y=0 line
-    plt.axhline(0, color='black', linewidth=0.8)
-
-    plt.title("Steady State Distribution")
-    plt.xlabel("Days to Reach Steady State")
-    plt.ylabel("Frequency")
-    plt.xticks(range(min(values), max(values)+1))
-    plt.legend()
-
-
-    save_path = sce_folder + '/Steady_State_Bar_Graph.png'
-    plt.savefig(save_path)
-    # Save the plot to a specific location as a svg
-    save_path = sce_folder + '/Steady_State_Bar_Graph.svg'
-    plt.savefig(save_path, format = 'svg')
-
-    plt.close()
-
-    # Calculate the range of the data
-    data_range_1 = max(postive_distances) - min(postive_distances)
-    data_range_2 = max(zero_distances_battery) - min(zero_distances_battery)
-    data_range_3 = max(zero_distances_chargers) - min(zero_distances_chargers)
+    # Calculate the range of the data for the non-empty sequences
+    data_range_1 = max(postive_distances) - min(postive_distances) if postive_distances else 0
+    data_range_2 = max(zero_distances_battery) - min(zero_distances_battery) if zero_distances_battery else 0
+    data_range_3 = max(zero_distances_chargers) - min(zero_distances_chargers) if zero_distances_chargers else 0
+    data_range_4 = max(postive_distances_oscilation) - min(postive_distances_oscilation) if postive_distances_oscilation else 0
 
     desired_bin_width = 5  # Adjust as needed
 
     # Calculate the number of bins based on the desired bin width
-    num_bins_1 = int(np.ceil(data_range_1 / desired_bin_width))
-    num_bins_2 = int(np.ceil(data_range_2 / desired_bin_width))
-    num_bins_3 = int(np.ceil(data_range_3 / desired_bin_width))
+    num_bins_1 = max(1, int(np.ceil(data_range_1 / desired_bin_width)))
+    num_bins_2 = max(1, int(np.ceil(data_range_2 / desired_bin_width)))
+    num_bins_3 = max(1, int(np.ceil(data_range_3 / desired_bin_width)))
+    num_bins_4 = max(1, int(np.ceil(data_range_4 / desired_bin_width)))
 
 
     ### Plot the distance distribution for zero and positive steady state
     plt.figure()
     # Create a histogram for the list above x-axis
     plt.hist(postive_distances, bins=num_bins_1, color='#FFA500', alpha=0.7, label='Positive Steady State')
+    plt.hist(postive_distances_oscilation, bins=num_bins_4, color='#FFE6B9', alpha=0.7, label='Positive Steady State - Oscilation')
 
     # Create a histogram for the list below x-axis
     plt.hist(zero_distances_battery, bins=num_bins_2, color='#2D71E6', alpha=0.7, label='0% Steady State - Battery')
