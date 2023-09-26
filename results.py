@@ -23,7 +23,8 @@ import re
 import matplotlib.dates as mdates
 import numpy as np
 
-source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/' 
+source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Uncontrolled_Charging/'
+#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Smart_Charging_1/' 
 num_vehicles = 17
 save_common = 'Day_'
 days = [str(num).zfill(2) for num in range(1, 32)]  # Days in the month
@@ -195,6 +196,9 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = sce_folder + '/Distance_Histogram.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = sce_folder + '/Distance_Histogram.pdf'
+    plt.savefig(save_path, format = 'pdf')
 
     plt.close()
 

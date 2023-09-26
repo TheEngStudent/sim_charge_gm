@@ -110,10 +110,10 @@ R_eq = (battery_parameters['M_s'] * battery_parameters['R_cell']) / battery_para
 
 # Grid Model Parameters
 grid_parameters = {
-    'num_chargers': 7,
+    'num_chargers': 9,
     'P_max': 22, # [kW]
     'efficiency': 0.88,
-    'soc_upper_limit': 80,
+    'soc_upper_limit': 100, #TODO change to 80 for smart charging
     'soc_lower_limit': 0,
     'home_charge': True, # Set for each sim you wish to desire
     'home_power': 7.2 # [kW]
@@ -245,7 +245,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                         priority_vehicles.append(vehicle_name)
 
         # Reorganise pirioty_vehicles to have the lowest SOC at the top
-        priority_vehicles = sorted(priority_vehicles, key = lambda x: og_soc.loc[index - 1, x])
+        # priority_vehicles = sorted(priority_vehicles, key = lambda x: og_soc.loc[index - 1, x]) #TODO uncomment to have lowest SOC charge first, currently first in charges
 
         for k in range(0, len(priority_vehicles)):
             if any(charger.loc[index] == ''): # If available charger, add vehicle to it
@@ -263,7 +263,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                     if og_soc.loc[index - 1, priority_vehicles[0]] < grid_parameters['soc_upper_limit']: # It should only swap vehicles if the soc in priority vehicles is less than 80
 
                         column_name = highest_soc_remove[w] # Assign the highest column name with the highest soc to remove first
-                        if og_soc.loc[index - 1, column_name] > grid_parameters['soc_upper_limit']:
+                        if og_soc.loc[index - 1, column_name] >= grid_parameters['soc_upper_limit']:
                             column_to_replace = charger.loc[index] == column_name # find the location where that value is
                             charger.loc[index, column_to_replace.idxmax()] = priority_vehicles[0] # make it equal to the highest priority vehicle
                             priority_vehicles.pop(0)
@@ -440,6 +440,9 @@ def save_individual_graphs(og_soc, V_b, save_folder, day, timedelta_index):
         # Save the plot to a specific location as a svg
         save_path = save_folder + column + '_' + day + '.svg'
         plt.savefig(save_path, format = 'svg')
+        # Save the plot to a specific location as a PDF
+        save_path = save_folder + column + '_' + day + '.pdf'
+        plt.savefig(save_path, format='pdf')
 
                         
         # Close the figure to free up memory
@@ -474,6 +477,10 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
     # Save the plot to a specific location as a svg
     save_path = save_folder + 'Day_' + day + '_SOC.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = save_folder + 'Day_' + day + '_SOC.pdf'
+    plt.savefig(save_path, format = 'pdf')
+
     plt.close()
 
     ### Plot grid power usage
@@ -498,6 +505,10 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
     # Save the plot to a specific location as a svg
     save_path = save_folder + 'Grid_Power_Day_' + day + '.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = save_folder + 'Grid_Power_Day_' + day + '.pdf'
+    plt.savefig(save_path, format = 'pdf')
+
     plt.close()
 
     ### Plot grid power usage per taxi of that day
@@ -521,6 +532,9 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
     # Save the plot to a specific location as a svg
     save_path = save_folder + 'Grid_Power_Vehicle_Day_' + day + '.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = save_folder + 'Grid_Power_Vehicle_Day_' + day + '.pdf'
+    plt.savefig(save_path, format = 'pdf')
     plt.close()
 
 # Functions for finding and deleting days with bad data
@@ -894,6 +908,10 @@ def simulate_day(m):
             # Save the plot to a specific location as a svg
             save_path = save_folder + 'Steady_State_SOC.svg'
             plt.savefig(save_path, format = 'svg')
+            # Save the plot to a specific location as a svg
+            save_path = save_folder + 'Steady_State_SOC.pdf'
+            plt.savefig(save_path, format = 'pdf')
+
             plt.close()
 
 

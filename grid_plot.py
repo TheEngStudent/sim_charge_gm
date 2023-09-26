@@ -23,12 +23,15 @@ import os
 import glob
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 import re
 import matplotlib.dates as mdates
 import numpy as np
 import natsort
+from matplotlib.lines import Line2D
 
-source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/' 
+source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Uncontrolled_Charging/'
+#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Smart_Charging_1/' 
 plt.rcParams['figure.dpi'] = 600
 
 ### Prepare for plotting
@@ -52,8 +55,18 @@ colour_list = [ '#d9ff00',
 
 # TODO change for other scenarios
 total_vehicle_days = 222
-positive_vehicle_days = [54, 93, 112, 120, 121, 122, 122]
-positive_vehicle_days_true = [157, 170, 175, 175, 175, 175, 175]
+
+### Smart_charging_1
+#positive_vehicle_days = [54, 93, 112, 120, 121, 122, 122]
+#positive_vehicle_days_true = [157, 170, 175, 175, 175, 175, 175]
+
+### Uncontrolled charging
+positive_vehicle_days = [41, 73, 92, 104, 110, 118, 121, 122, 122]
+positive_vehicle_days_true = [140, 158, 165, 171, 174, 175, 175, 175, 175]
+
+# Main color
+depot_colour = '#2D71E6'
+home_colour = '#CB2D2D'
 
 
 
@@ -69,7 +82,17 @@ sce_folders = glob.glob(os.path.join(source_folder, 'SCE*False'))
 all_day_vehicle_min = []
 all_day_sums_min = []
 
+### all plot functions
+all_day_vehicle_min_list_avg = []
+all_day_sums_min_list_avg = []
+all_day_vehicle_min_list_max = []
+all_day_sums_min_list_max = []
+
+n_iterations = 0
+
 for sce_folder in sce_folders:
+
+    n_iterations = n_iterations + 1
 
     day_subfolders = glob.glob(os.path.join(sce_folder, 'Day*'))
     sce_folder_name = os.path.basename(sce_folder)
@@ -131,6 +154,13 @@ for sce_folder in sce_folders:
     all_day_vehicle_min.append(max_day_array_vehicles)
     all_day_sums_min.append(max_day_array_sums)
 
+    ### Save for all plot
+    all_day_vehicle_min_list_avg.append(avg_values_array_vehicle)
+    all_day_sums_min_list_avg.append(avg_values_array_sums)
+
+    all_day_vehicle_min_list_max.append(max_values_array_vehicle)
+    all_day_sums_min_list_max.append(max_values_array_sums)
+
     print('Saving Graphs')
 
     ### Plot information for per vehicle data
@@ -158,6 +188,9 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle.pdf'
+    plt.savefig(save_path, format = 'pdf')
 
     plt.close()
 
@@ -186,9 +219,174 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power.pdf'
+    plt.savefig(save_path, format = 'pdf')
 
     plt.close()
 
+### Plot all the grid powers on the same graph
+
+
+color_legend_elements = [
+    Line2D([0], [0], color=(
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    ), lw=1, label=f'N{i+1}')
+    for i in range(n_iterations)
+]
+
+### Plot max values
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 170)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power')
+
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Grid_False_Max.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Grid_False_Max.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Grid_False_Max.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+### Plot for average
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 170)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power')
+
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Grid_False_Average.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Grid_False_Average.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Grid_False_Average.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+### Plot all the grid powers on the same graph
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 30)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power per Vehicle')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Vehicle_False_Max.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Vehicle_False_Max.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Vehicle_False_Max.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+
+
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 30)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power per Vehicle')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Vehicle_False_Average.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Vehicle_False_Average.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Vehicle_False_Average.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+
+### Box Plots Plotting
 print('Creating Box Plots')
 
 all_day_vehicle_min = pd.DataFrame(all_day_vehicle_min)
@@ -196,6 +394,9 @@ all_day_sums_min = pd.DataFrame(all_day_sums_min)
 
 result_box_plot_vehicle = all_day_vehicle_min.T
 result_box_plot_sums = all_day_sums_min.T
+
+result_box_plot_vehicle_F = result_box_plot_vehicle
+result_box_plot_sums_F = result_box_plot_sums
 
 plt.figure()
 
@@ -215,6 +416,8 @@ ax1.set_ylim(0, 170)
 # Calculate percentage completion
 percentages = [day / total_vehicle_days * 100 for day in positive_vehicle_days]
 
+percentages_F = percentages
+
 # Create a twin y-axis for percentages
 ax2 = ax1.twinx()
 ax2.set_ylabel('Percentage Completion')
@@ -231,6 +434,8 @@ save_path = source_folder + '/Grid_Power_Box_Plot_HC_False.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Box_Plot_HC_False.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Box_Plot_HC_False.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
 
@@ -269,6 +474,8 @@ save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_False.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_False.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_False.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
 
@@ -292,6 +499,26 @@ all_day_sums_min_d = []
 
 all_day_vehicle_min_hc = []
 all_day_sums_min_hc = []
+
+### all plot functions
+all_day_vehicle_min_list_avg = []
+all_day_sums_min_list_avg = []
+
+all_day_vehicle_min_list_max = []
+all_day_sums_min_list_max = []
+
+all_day_vehicle_min_list_d_avg = []
+all_day_sums_min_list_d_avg = []
+
+all_day_vehicle_min_list_d_max = []
+all_day_sums_min_list_d_max = []
+
+all_day_vehicle_min_list_hc_avg = []
+all_day_sums_min_list_hc_avg = []
+
+all_day_vehicle_min_list_hc_max = []
+all_day_sums_min_list_hc_max = []
+
 
 for sce_folder in sce_folders:
 
@@ -393,6 +620,13 @@ for sce_folder in sce_folders:
     all_day_vehicle_min.append(max_day_array_vehicles)
     all_day_sums_min.append(max_day_array_sums)
 
+    ### Save for all plot
+    all_day_vehicle_min_list_avg.append(avg_values_array_vehicle)
+    all_day_sums_min_list_avg.append(avg_values_array_sums)
+
+    all_day_vehicle_min_list_max.append(max_values_array_vehicle)
+    all_day_sums_min_list_max.append(max_values_array_sums)
+
     print('Saving Graphs')
 
     ### Plot information for per vehicle data
@@ -420,6 +654,9 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle_Overall.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle_Overall.pdf'
+    plt.savefig(save_path, format = 'pdf')
 
     plt.close()
 
@@ -448,6 +685,9 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Overall.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Overall.pdf'
+    plt.savefig(save_path, format = 'pdf')
 
     plt.close()
 
@@ -497,6 +737,19 @@ for sce_folder in sce_folders:
     all_day_vehicle_min_hc.append(max_day_array_vehicles_hc)
     all_day_sums_min_hc.append(max_day_array_sums_hc)
 
+    ### Save for all plot
+    all_day_vehicle_min_list_d_avg.append(avg_values_array_vehicle_d)
+    all_day_sums_min_list_d_avg.append(avg_values_array_sums_d)
+
+    all_day_vehicle_min_list_d_max.append(max_values_array_vehicle_d)
+    all_day_sums_min_list_d_max.append(max_values_array_sums_d)
+
+    all_day_vehicle_min_list_hc_avg.append(avg_values_array_vehicle_hc)
+    all_day_sums_min_list_hc_avg.append(avg_values_array_sums_hc)
+
+    all_day_vehicle_min_list_hc_max.append(max_values_array_vehicle_hc)
+    all_day_sums_min_list_hc_max.append(max_values_array_sums_hc)
+
     print('Saving Graphs')
 
     ### Plot information for per vehicle data
@@ -526,6 +779,9 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle_Separate.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle_Separate.pdf'
+    plt.savefig(save_path, format = 'pdf')
 
     plt.close()
 
@@ -556,8 +812,368 @@ for sce_folder in sce_folders:
     # Save the plot to a specific location as a svg
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Separate.svg'
     plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Separate.pdf'
+    plt.savefig(save_path, format = 'pdf')
 
     plt.close()
+
+
+### Plot all the grid powers on the same graph
+
+color_legend_elements = [
+    Line2D([0], [0], color=(
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    ), lw=1, label=f'N{i+1}')
+    for i in range(n_iterations)
+]
+
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 170)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Grid_True_Overall_Max.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Grid_True_Overall_Max.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Grid_True_Overall_Max.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+
+
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 170)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Grid_True_Overall_Average.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Grid_True_Overall_Average.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Grid_True_Overall_Average.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+### Plot all the grid powers on the same graph
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 30)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power per Vehicle')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Vehicle_True_Overall_Max.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Vehicle_True_Overall_Max.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Vehicle_True_Overall_Max.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+
+
+
+
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 30)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power per Vehicle')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Vehicle_True_Overall_Average.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Vehicle_True_Overall_Average.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Vehicle_True_Overall_Average.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+##############################################################################################################
+color_legend_elements = [
+    Line2D([0], [0], color=(
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    ), lw=1)
+    for i in range(n_iterations)
+]
+
+
+for i in range(n_iterations):
+    color_legend_elements.append(
+        Line2D([0], [0], color=(
+            (1 - i / n_iterations) * int(home_colour[1:3], 16) / 255,
+            (1 - i / n_iterations) * int(home_colour[3:5], 16) / 255,
+            (1 - i / n_iterations) * int(home_colour[5:7], 16) / 255
+        ), lw=1, label=f'N{i+1}')
+    )
+
+
+### Plot all the grid powers on the same graph
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_d_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_hc_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(home_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 170)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right', ncol=2)
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Grid_True_Max.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Grid_True_Max.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Grid_True_Max.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_d_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+
+for i, avg_values_array_vehicle in enumerate(all_day_sums_min_list_hc_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(home_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 170)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right', ncol=2)
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Grid_True_Average.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Grid_True_Average.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Grid_True_Average.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+
+### Plot all the grid powers on the same graph
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_d_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_hc_max):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(home_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 30)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power per Vehicle')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right', ncol=2)
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Vehicle_True_Max.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Vehicle_True_Max.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Vehicle_True_Max.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_d_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(depot_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(depot_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+for i, avg_values_array_vehicle in enumerate(all_day_vehicle_min_list_hc_avg):
+    # Calculate the color gradient between iterations with the darker color at the back
+    color = (
+        (1 - i / n_iterations) * int(home_colour[1:3], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[3:5], 16) / 255,
+        (1 - i / n_iterations) * int(home_colour[5:7], 16) / 255
+    )
+    plt.plot(timedelta_index, avg_values_array_vehicle, color=color, lw=0.5)
+
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+plt.xticks(rotation=45)
+
+plt.ylim(0, 30)
+plt.xlabel('Time of Day')
+plt.ylabel('Grid Power [kW]')
+plt.title('Maximum Grid Power per Vehicle')
+custom_legend = plt.legend(handles=color_legend_elements, loc='upper right', ncol=2)
+
+# Combine both legends into a single legend
+plt.gca().add_artist(custom_legend)
+
+plt.subplots_adjust(bottom = 0.2)
+
+save_path = source_folder + '/All_Vehicle_True_Average.png'
+plt.savefig(save_path)
+save_path = source_folder + '/All_Vehicle_True_Average.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/All_Vehicle_True_Average.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+
 
 ################################### Overall #######################################
 print('Creating Box Plots - Overall')
@@ -567,6 +1183,9 @@ all_day_sums_min = pd.DataFrame(all_day_sums_min)
 
 result_box_plot_vehicle = all_day_vehicle_min.T
 result_box_plot_sums = all_day_sums_min.T
+
+result_box_plot_vehicle_T = result_box_plot_vehicle
+result_box_plot_sums_T = result_box_plot_sums
 
 plt.figure()
 
@@ -586,6 +1205,8 @@ ax1.set_ylim(0, 170)
 # Calculate percentage completion
 percentages = [day / total_vehicle_days * 100 for day in positive_vehicle_days_true]
 
+percentages_T = percentages
+
 # Create a twin y-axis for percentages
 ax2 = ax1.twinx()
 ax2.set_ylabel('Percentage Completion')
@@ -602,6 +1223,8 @@ save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Overall.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Overall.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Overall.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
 
@@ -640,6 +1263,8 @@ save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Overall.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Overall.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Overall.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
 
@@ -652,6 +1277,9 @@ all_day_sums_min_d = pd.DataFrame(all_day_sums_min_d)
 
 result_box_plot_vehicle_d = all_day_vehicle_min_d.T
 result_box_plot_sums_d = all_day_sums_min_d.T
+
+result_box_plot_vehicle_d_T = result_box_plot_vehicle_d
+result_box_plot_sums_d_T = result_box_plot_sums_d
 
 plt.figure()
 
@@ -687,6 +1315,8 @@ save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Depot.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Depot.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Depot.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
 
@@ -725,8 +1355,13 @@ save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Depot.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Depot.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Depot.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
+
+
+
 
 ################################### Home Charging #######################################
 print('Creating Box Plots - Home Charging')
@@ -736,6 +1371,9 @@ all_day_sums_min_hc = pd.DataFrame(all_day_sums_min_hc)
 
 result_box_plot_vehicle_hc = all_day_vehicle_min_hc.T
 result_box_plot_sums_hc = all_day_sums_min_hc.T
+
+result_box_plot_vehicle_hc_T = result_box_plot_vehicle_hc
+result_box_plot_sums_hc_T = result_box_plot_sums_hc
 
 plt.figure()
 
@@ -771,6 +1409,8 @@ save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Home.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Home.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Box_Plot_HC_True_Home.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
 
@@ -809,11 +1449,267 @@ save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Home.png'
 plt.savefig(save_path)
 save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Home.svg'
 plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Home.pdf'
+plt.savefig(save_path, format='pdf')
 
 plt.close()
 
-    
 
+################################### Combined Box Plots #############################################   
+print('Combined Box Plots')
+
+num_chargers = list(range(1, len(positive_vehicle_days) + 1))
+
+# Create a figure with a single subplot
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Calculate the x-positions for the boxes
+x_positions = np.arange(len(num_chargers))
+
+# Create box plots for both datasets
+box1 = ax.boxplot(result_box_plot_sums_F, positions=x_positions - 0.2, patch_artist=True, showfliers=False, widths=0.35)
+box2 = ax.boxplot(result_box_plot_sums_T, positions=x_positions + 0.2, patch_artist=True, showfliers=False, widths=0.35)
+
+# Customize box colors
+for patch in box1['boxes']:
+    patch.set_facecolor('#FFA605')
+
+for patch in box2['boxes']:
+    patch.set_facecolor('#2D71E6')
+
+# Add labels and title
+ax.set_xticks(x_positions)
+ax.set_xticklabels(num_chargers)
+ax.set_xlabel('Number of Chargers')
+ax.set_ylabel('Grid Power [kW]')
+ax.set_title('Maximum Grid Power per Scenario')
+ax.set_ylim(0, 170)
+
+x_positions_percent = x_positions + 0.1
+
+# Calculate and plot percentages for both datasets
+axtwin = ax.twinx()
+axtwin.set_ylabel('Percentage Completion')
+axtwin.set_ylim(0, 100)
+axtwin.plot(x_positions, percentages_F, linestyle='-', color='#FFE6B9', label='No Home Charging')
+axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Home Charging')
+
+
+axtwin.legend(loc='upper left')
+
+# Show the plot
+plt.tight_layout()
+save_path = source_folder + '/Combined_Box_Plot.png'
+plt.savefig(save_path)
+save_path = source_folder + '/Combined_Box_Plot.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Combined_Box_Plot.pdf'
+plt.savefig(save_path, format='pdf')
+plt.close()
+
+
+# Create a figure with a single subplot
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Calculate the x-positions for the boxes
+x_positions = np.arange(len(num_chargers))
+
+# Create box plots for both datasets
+box1 = ax.boxplot(result_box_plot_vehicle_F, positions=x_positions - 0.2, patch_artist=True, showfliers=False, widths=0.35)
+box2 = ax.boxplot(result_box_plot_vehicle_T, positions=x_positions + 0.2, patch_artist=True, showfliers=False, widths=0.35)
+
+# Customize box colors
+for patch in box1['boxes']:
+    patch.set_facecolor('#FFA605')
+
+for patch in box2['boxes']:
+    patch.set_facecolor('#2D71E6')
+
+# Add labels and title
+ax.set_xticks(x_positions)
+ax.set_xticklabels(num_chargers)
+ax.set_xlabel('Number of Chargers')
+ax.set_ylabel('Grid Power [kW]')
+ax.set_title('Maximum Grid Power per Scenario')
+ax.set_ylim(0, 30)
+
+x_positions_percent = x_positions + 0.1
+
+# Calculate and plot percentages for both datasets
+axtwin = ax.twinx()
+axtwin.set_ylabel('Percentage Completion')
+axtwin.set_ylim(0, 100)
+axtwin.plot(x_positions, percentages_F, linestyle='-', color='#FFE6B9', label='No Home Charging')
+axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Home Charging')
+
+
+
+axtwin.legend(loc='upper left')
+
+# Show the plot
+plt.tight_layout()
+save_path = source_folder + '/Combined_Vehicle_Box_Plot.png'
+plt.savefig(save_path)
+save_path = source_folder + '/Combined_Vehicle_Box_Plot.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Combined_Vehicle_Box_Plot.pdf'
+plt.savefig(save_path, format='pdf')
+plt.close()
+
+
+
+
+
+print('Combined Box Plots - Home Charging')
+
+num_chargers = list(range(1, len(positive_vehicle_days) + 1))
+
+# Create a figure with a single subplot
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Calculate the x-positions for the boxes
+x_positions = np.arange(len(num_chargers))
+
+boxplot_colors = ['#2D71E6', '#FF3737', '#FD8383']
+
+# Create box plots for both datasets using the same colors as legend handles
+box1 = ax.boxplot(result_box_plot_sums_T, positions=x_positions - 0.25, patch_artist=True, showfliers=False, widths=0.2, boxprops=dict(facecolor=boxplot_colors[0]))
+box2 = ax.boxplot(result_box_plot_sums_d_T, positions=x_positions, patch_artist=True, showfliers=False, widths=0.2, boxprops=dict(facecolor=boxplot_colors[1]))
+box3 = ax.boxplot(result_box_plot_sums_hc_T, positions=x_positions + 0.25, patch_artist=True, showfliers=False, widths=0.2, boxprops=dict(facecolor=boxplot_colors[2]))
+
+# Create legend handles with the same colors
+legend_handles = [
+    Patch(facecolor=boxplot_colors[0], label='Total'),
+    Patch(facecolor=boxplot_colors[1], label='Depot Charging'),
+    Patch(facecolor=boxplot_colors[2], label='Home Charging'),
+]
+
+# Add labels and title
+ax.set_xticks(x_positions)
+ax.set_xticklabels(num_chargers)
+ax.set_xlabel('Number of Chargers')
+ax.set_ylabel('Grid Power [kW]')
+ax.set_title('Maximum Grid Power per Scenario - Home Charging Split')
+ax.set_ylim(0, 170)
+
+x_positions_percent = x_positions + 0.1
+
+# Calculate and plot percentages for both datasets
+axtwin = ax.twinx()
+axtwin.set_ylabel('Percentage Completion')
+axtwin.set_ylim(0, 100)
+axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Home Charging')
+
+ax.legend(handles=legend_handles, loc='upper left')
+axtwin.legend(loc='upper right')
+
+# Show the plot
+plt.tight_layout()
+save_path = source_folder + '/Combined_Box_Plot_HC.png'
+plt.savefig(save_path)
+save_path = source_folder + '/Combined_Box_Plot_HC.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Combined_Box_Plot_HC.pdf'
+plt.savefig(save_path, format='pdf')
+plt.close()
+
+
+
+# Create a figure with a single subplot
+fig, ax = plt.subplots(figsize=(8, 6))
+
+# Calculate the x-positions for the boxes
+x_positions = np.arange(len(num_chargers))
+
+boxplot_colors = ['#2D71E6', '#FF3737', '#FD8383']
+
+# Create box plots for both datasets using the same colors as legend handles
+box1 = ax.boxplot(result_box_plot_vehicle_T, positions=x_positions - 0.25, patch_artist=True, showfliers=False, widths=0.2, boxprops=dict(facecolor=boxplot_colors[0]))
+box2 = ax.boxplot(result_box_plot_vehicle_d_T, positions=x_positions, patch_artist=True, showfliers=False, widths=0.2, boxprops=dict(facecolor=boxplot_colors[1]))
+box3 = ax.boxplot(result_box_plot_vehicle_hc_T, positions=x_positions + 0.25, patch_artist=True, showfliers=False, widths=0.2, boxprops=dict(facecolor=boxplot_colors[2]))
+
+# Create legend handles with the same colors
+legend_handles = [
+    Patch(facecolor=boxplot_colors[0], label='Total'),
+    Patch(facecolor=boxplot_colors[1], label='Depot Charging'),
+    Patch(facecolor=boxplot_colors[2], label='Home Charging'),
+]
+
+# Add labels and title
+ax.set_xticks(x_positions)
+ax.set_xticklabels(num_chargers)
+ax.set_xlabel('Number of Chargers')
+ax.set_ylabel('Grid Power [kW]')
+ax.set_title('Maximum Grid Power per Scenario - Home Charging Split')
+ax.set_ylim(0, 30)
+
+x_positions_percent = x_positions + 0.1
+
+# Calculate and plot percentages for both datasets
+axtwin = ax.twinx()
+axtwin.set_ylabel('Percentage Completion')
+axtwin.set_ylim(0, 100)
+axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Home Charging')
+
+ax.legend(handles=legend_handles, loc='upper left')
+axtwin.legend(loc='upper right')
+
+# Show the plot
+plt.tight_layout()
+save_path = source_folder + '/Combined_Vehicle_Box_Plot_HC.png'
+plt.savefig(save_path)
+save_path = source_folder + '/Combined_Vehicle_Box_Plot_HC.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Combined_Vehicle_Box_Plot_HC.pdf'
+plt.savefig(save_path, format='pdf')
+plt.close()
+
+
+
+
+
+
+
+"""
+plt.figure()
+
+fig, ax1 = plt.subplots()
+
+box = plt.boxplot(result_box_plot_vehicle, patch_artist=True, showfliers=False)
+for patch in box['boxes']:
+    patch.set_facecolor('#FFE6B9')
+
+# Add labels and title
+ax1.set_xlabel('Number of Chargers')
+ax1.set_ylabel('Grid Power [kW]')
+ax1.set_title('Maximum Grid Power per Vehicle per Scenario (HC = True)')
+
+ax1.set_ylim(0, 25)
+
+# Calculate percentage completion
+percentages = [day / total_vehicle_days * 100 for day in positive_vehicle_days_true]
+
+# Create a twin y-axis for percentages
+ax2 = ax1.twinx()
+ax2.set_ylabel('Percentage Completion')
+
+ax2.set_ylim(0, 100)
+
+# Plot percentages behind the box plots
+ax2.plot(range(1, len(percentages) + 1), percentages, linestyle='-', label='Percentage Completion', color='#2D71E6')
+ax2.fill_between(range(1, len(percentages) + 1), percentages, 0, alpha=0.2, color='#ADD8E6')
+
+# Show the plot
+plt.tight_layout()
+save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Overall.png'
+plt.savefig(save_path)
+save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Overall.svg'
+plt.savefig(save_path, format='svg')
+save_path = source_folder + '/Grid_Power_Vehicle_Box_Plot_HC_True_Overall.pdf'
+plt.savefig(save_path, format='pdf')
+
+plt.close()
+"""
 
 """
 
