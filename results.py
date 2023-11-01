@@ -22,9 +22,12 @@ import matplotlib.pyplot as plt
 import re
 import matplotlib.dates as mdates
 import numpy as np
+import seaborn as sns
+from scipy.stats import gaussian_kde
 
-source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Uncontrolled_Charging/'
-#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Smart_Charging_1/' 
+#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Uncontrolled_Charging/'
+source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Smart_Charging_1/'
+#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Fast_Charging/' 
 num_vehicles = 17
 save_common = 'Day_'
 days = [str(num).zfill(2) for num in range(1, 32)]  # Days in the month
@@ -60,6 +63,9 @@ for sce_folder in sce_folders:
 
     print(sce_folder_name)
 
+    min_non_zero_values = []
+    final_non_zero_values = []
+
     ### For each day folder in the SCE folder
     for day_folder in day_subfolders:
 
@@ -93,6 +99,28 @@ for sce_folder in sce_folders:
                     vehicle_zero_steady_state[col] = True
 
             steady_state_soc = steady_state_soc.append(soc_dataframe.iloc[-1], ignore_index=True)
+
+            last_iteration_folder = iteration_folder
+
+        ### Gather information regarding the SOC behaviour of the vehicles
+        if last_iteration_folder:
+            soc_file_path_2 = os.path.join(last_iteration_folder, 'soc.csv')
+            soc_dataframe_2 = pd.read_csv(soc_file_path_2)
+
+            for column in soc_dataframe_2.columns:
+                non_zero_values = soc_dataframe[column][soc_dataframe[column] != 0]
+
+                # Check if there are non-zero values in the column
+                if not non_zero_values.empty:
+                    # Find minimum non-zero value and add it to min_non_zero_values list
+                    min_non_zero_value = non_zero_values.min()
+                    min_non_zero_values.append(min_non_zero_value)
+
+                    # Find final non-zero value and add it to final_non_zero_values list
+                    final_non_zero_value = non_zero_values.iloc[-1]  # Get the last non-zero value
+                    final_non_zero_values.append(final_non_zero_value)
+
+
 
         # Only evaluating on the last iteration because that is when everything reached steady state
         total_length = len(steady_state_soc)
@@ -151,16 +179,18 @@ for sce_folder in sce_folders:
                 
         total_vehicle_days = total_vehicle_days + len(soc_dataframe.columns)
 
+
+    ################################### Vehicle-day success rate ###########################################
     print(f"Total Vehicle Days: {total_vehicle_days}")
 
     print(f"Total Positive Steady State: {positive_steady_state}")
-    print(f"Total Positive Steady State - Oscilations: {positive_steady_state_oscilation}")
+    #print(f"Total Positive Steady State - Oscilations: {positive_steady_state_oscilation}")
     print(f"Total Zero Steady State - Battery: {zero_steady_state_battery}")
     print(f"Total Zero Steady State - Charging: {zero_steady_state_chargers}")           
 
     print("Saving Graphs")
 
-
+    #################################### Distance distribution ##############################################
     # Calculate the range of the data for the non-empty sequences
     data_range_1 = max(postive_distances) - min(postive_distances) if postive_distances else 0
     data_range_2 = max(zero_distances_battery) - min(zero_distances_battery) if zero_distances_battery else 0
@@ -180,16 +210,18 @@ for sce_folder in sce_folders:
     plt.figure()
     # Create a histogram for the list above x-axis
     plt.hist(postive_distances, bins=num_bins_1, color='#FFA500', alpha=0.7, label='Positive Steady State')
-    plt.hist(postive_distances_oscilation, bins=num_bins_4, color='#FFE6B9', alpha=0.7, label='Positive Steady State - Oscilation')
+    #plt.hist(postive_distances_oscilation, bins=num_bins_4, color='#FFE6B9', alpha=0.7, label='Positive Steady State - Oscilation')
 
     # Create a histogram for the list below x-axis
     plt.hist(zero_distances_battery, bins=num_bins_2, color='#2D71E6', alpha=0.7, label='0% Steady State - Battery')
     plt.hist(zero_distances_chargers, bins=num_bins_3, color='#ADD8E6', alpha=0.7, label='0% Steady State - Charging')
 
-    plt.title("Distance Distribution for Steady State")
-    plt.xlabel("Distance per Day [km]")
-    plt.ylabel("Frequency")
-    plt.legend()
+    #plt.title("Distance Distribution for Steady State")
+    plt.xlabel("Distance per Vehicle-day [km]", fontsize=16)
+    plt.ylabel("Frequency", fontsize=16)
+    plt.legend(fontsize=16)
+
+    plt.tight_layout()
 
     save_path = sce_folder + '/Distance_Histogram.png'
     plt.savefig(save_path)
@@ -201,6 +233,48 @@ for sce_folder in sce_folders:
     plt.savefig(save_path, format = 'pdf')
 
     plt.close()
+
+
+    ##################################### SOC distribution ########################################
+
+    combined_data = np.vstack([min_non_zero_values, final_non_zero_values])
+    kde = gaussian_kde(combined_data, bw_method=2)
+
+    x_range = np.linspace(0, 100, 1000)
+    y_range = np.linspace(0, 100, 1000)
+
+    x_grid, y_grid = np.meshgrid(x_range, y_range)
+    points = np.vstack([x_grid.ravel(), y_grid.ravel()])
+
+    probabilities = kde(points)
+
+    # Reshape the probabilities to match the grid shape
+    probabilities_grid = probabilities.reshape(x_grid.shape)
+
+    # Plot the heatmap
+    plt.imshow(probabilities_grid, cmap='YlGnBu', origin='lower', extent=[0, 100, 0, 100])
+    plt.colorbar()
+
+    plt.scatter(min_non_zero_values, final_non_zero_values, color='black', label='Vehicle-days', s=5)
+
+    # Add labels and title
+    plt.xlabel('Minimum SOC')
+    plt.ylabel('Final SOC')
+    plt.title('Available Battery Energy')
+    plt.tight_layout()
+
+    save_path = sce_folder + '/SOC_Distribution.png'
+    plt.savefig(save_path)
+    # Save the plot to a specific location as a svg
+    save_path = sce_folder + '/SOC_Distribution.svg'
+    plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = sce_folder + '/SOC_Distribution.pdf'
+    plt.savefig(save_path, format = 'pdf')
+
+    plt.close()
+
+
 
 
 """

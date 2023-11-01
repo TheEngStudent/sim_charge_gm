@@ -110,10 +110,10 @@ R_eq = (battery_parameters['M_s'] * battery_parameters['R_cell']) / battery_para
 
 # Grid Model Parameters
 grid_parameters = {
-    'num_chargers': 9,
-    'P_max': 22, # [kW]
+    'num_chargers': 1,
+    'P_max': 150, # [kW]
     'efficiency': 0.88,
-    'soc_upper_limit': 100, #TODO change to 80 for smart charging
+    'soc_upper_limit': 80, #TODO change to 80 for smart charging
     'soc_lower_limit': 0,
     'home_charge': True, # Set for each sim you wish to desire
     'home_power': 7.2 # [kW]
@@ -245,7 +245,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
                         priority_vehicles.append(vehicle_name)
 
         # Reorganise pirioty_vehicles to have the lowest SOC at the top
-        # priority_vehicles = sorted(priority_vehicles, key = lambda x: og_soc.loc[index - 1, x]) #TODO uncomment to have lowest SOC charge first, currently first in charges
+        priority_vehicles = sorted(priority_vehicles, key = lambda x: og_soc.loc[index - 1, x]) #TODO uncomment to have lowest SOC charge first, currently first in charges
 
         for k in range(0, len(priority_vehicles)):
             if any(charger.loc[index] == ''): # If available charger, add vehicle to it

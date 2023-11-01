@@ -169,7 +169,7 @@ def is_point_at_home(row, most_common):
     distance = haversine((target_latitude, target_longitude), (point_latitude, point_longitude), unit = 'm')
     return distance <= 150  
 
-"""
+
 ### Create output folders to save everything to
 os.makedirs(destination_folder, exist_ok=True)  # Create the destination folder if it doesn't exist
 copy_folder_structure(source_folder, destination_folder)
@@ -337,7 +337,7 @@ for i in range(1, num_folders + 1):
     plt.savefig(png_total_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-"""
+
 #################################################################################################
 ################ Reframe each vehicle to start from 04:00:00 an end at 03:59:59 #################
 #################################################################################################

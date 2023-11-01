@@ -19,6 +19,10 @@ tasks:
         - The same is done as in first
 """
 
+# TODO is to change for differing power levels
+#   140 <-> 30
+#   550 <-> 170
+
 import os
 import glob
 import pandas as pd
@@ -31,7 +35,8 @@ import natsort
 from matplotlib.lines import Line2D
 
 source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Uncontrolled_Charging/'
-#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Smart_Charging_1/' 
+#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Smart_Charging_1/'
+#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Fast_Charging/' 
 plt.rcParams['figure.dpi'] = 600
 
 ### Prepare for plotting
@@ -57,12 +62,16 @@ colour_list = [ '#d9ff00',
 total_vehicle_days = 222
 
 ### Smart_charging_1
-#positive_vehicle_days = [54, 93, 112, 120, 121, 122, 122]
-#positive_vehicle_days_true = [157, 170, 175, 175, 175, 175, 175]
+#positive_vehicle_days = [50, 84, 97, 119, 121, 122, 122, 122, 122]
+#positive_vehicle_days_true = [157, 170, 175, 175, 175, 175, 175, 175, 175]
 
 ### Uncontrolled charging
 positive_vehicle_days = [41, 73, 92, 104, 110, 118, 121, 122, 122]
 positive_vehicle_days_true = [140, 158, 165, 171, 174, 175, 175, 175, 175]
+
+### Fast charging
+#positive_vehicle_days = [81, 120, 136, 143, 144, 144, 144, 144, 144]
+#positive_vehicle_days_true = [156, 179, 184, 188, 190, 190, 190, 190, 190]
 
 # Main color
 depot_colour = '#2D71E6'
@@ -175,13 +184,15 @@ for sce_folder in sce_folders:
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
     plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
 
-    plt.ylim(0, 30)
+    plt.ylim(0, 30) 
     plt.xlabel('Time of Day')
     plt.ylabel('Grid Power [kW]')
     plt.title('Maximum and Minimum Grid Power per Vehicle')
     plt.legend()
 
     plt.subplots_adjust(bottom = 0.2)
+
+    plt.tight_layout()
 
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle.png'
     plt.savefig(save_path)
@@ -213,6 +224,8 @@ for sce_folder in sce_folders:
     plt.legend()
 
     plt.subplots_adjust(bottom = 0.2)
+
+    plt.tight_layout()
 
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power.png'
     plt.savefig(save_path)
@@ -265,6 +278,8 @@ plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
 
+plt.tight_layout()
+
 save_path = source_folder + '/All_Grid_False_Max.png'
 plt.savefig(save_path)
 save_path = source_folder + '/All_Grid_False_Max.svg'
@@ -302,6 +317,8 @@ plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
 
+plt.tight_layout()
+
 save_path = source_folder + '/All_Grid_False_Average.png'
 plt.savefig(save_path)
 save_path = source_folder + '/All_Grid_False_Average.svg'
@@ -337,6 +354,8 @@ custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
 plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
+
+plt.tight_layout()
 
 save_path = source_folder + '/All_Vehicle_False_Max.png'
 plt.savefig(save_path)
@@ -374,6 +393,8 @@ custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
 plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
+
+plt.tight_layout()
 
 save_path = source_folder + '/All_Vehicle_False_Average.png'
 plt.savefig(save_path)
@@ -649,6 +670,8 @@ for sce_folder in sce_folders:
 
     plt.subplots_adjust(bottom = 0.2)
 
+    plt.tight_layout()
+
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle_Overall.png'
     plt.savefig(save_path)
     # Save the plot to a specific location as a svg
@@ -679,6 +702,8 @@ for sce_folder in sce_folders:
     plt.legend()
 
     plt.subplots_adjust(bottom = 0.2)
+
+    plt.tight_layout()
 
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Overall.png'
     plt.savefig(save_path)
@@ -774,6 +799,8 @@ for sce_folder in sce_folders:
 
     plt.subplots_adjust(bottom = 0.2)
 
+    plt.tight_layout()
+
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Vehicle_Separate.png'
     plt.savefig(save_path)
     # Save the plot to a specific location as a svg
@@ -806,6 +833,8 @@ for sce_folder in sce_folders:
     plt.legend()
 
     plt.subplots_adjust(bottom = 0.2)
+
+    plt.tight_layout()
 
     save_path = source_folder + '/' + sce_folder_name + '/Max_Min_Grid_Power_Separate.png'
     plt.savefig(save_path)
@@ -855,6 +884,8 @@ plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
 
+plt.tight_layout()
+
 save_path = source_folder + '/All_Grid_True_Overall_Max.png'
 plt.savefig(save_path)
 save_path = source_folder + '/All_Grid_True_Overall_Max.svg'
@@ -892,6 +923,8 @@ plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
 
+plt.tight_layout()
+
 save_path = source_folder + '/All_Grid_True_Overall_Average.png'
 plt.savefig(save_path)
 save_path = source_folder + '/All_Grid_True_Overall_Average.svg'
@@ -927,6 +960,8 @@ custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
 plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
+
+plt.tight_layout()
 
 save_path = source_folder + '/All_Vehicle_True_Overall_Max.png'
 plt.savefig(save_path)
@@ -966,6 +1001,8 @@ custom_legend = plt.legend(handles=color_legend_elements, loc='upper right')
 plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
+
+plt.tight_layout()
 
 save_path = source_folder + '/All_Vehicle_True_Overall_Average.png'
 plt.savefig(save_path)
@@ -1033,6 +1070,8 @@ plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
 
+plt.tight_layout()
+
 save_path = source_folder + '/All_Grid_True_Max.png'
 plt.savefig(save_path)
 save_path = source_folder + '/All_Grid_True_Max.svg'
@@ -1076,6 +1115,8 @@ custom_legend = plt.legend(handles=color_legend_elements, loc='upper right', nco
 plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
+
+plt.tight_layout()
 
 save_path = source_folder + '/All_Grid_True_Average.png'
 plt.savefig(save_path)
@@ -1122,6 +1163,8 @@ plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
 
+plt.tight_layout()
+
 save_path = source_folder + '/All_Vehicle_True_Max.png'
 plt.savefig(save_path)
 save_path = source_folder + '/All_Vehicle_True_Max.svg'
@@ -1164,6 +1207,8 @@ custom_legend = plt.legend(handles=color_legend_elements, loc='upper right', nco
 plt.gca().add_artist(custom_legend)
 
 plt.subplots_adjust(bottom = 0.2)
+
+plt.tight_layout()
 
 save_path = source_folder + '/All_Vehicle_True_Average.png'
 plt.savefig(save_path)
@@ -1242,7 +1287,7 @@ ax1.set_xlabel('Number of Chargers')
 ax1.set_ylabel('Grid Power [kW]')
 ax1.set_title('Maximum Grid Power per Vehicle per Scenario (HC = True)')
 
-ax1.set_ylim(0, 25)
+ax1.set_ylim(0, 30)
 
 # Calculate percentage completion
 percentages = [day / total_vehicle_days * 100 for day in positive_vehicle_days_true]
@@ -1334,7 +1379,7 @@ ax1.set_xlabel('Number of Chargers')
 ax1.set_ylabel('Grid Power [kW]')
 ax1.set_title('Maximum Depot Grid Power per Vehicle per Scenario (HC = True)')
 
-ax1.set_ylim(0, 25)
+ax1.set_ylim(0, 30)
 
 # Calculate percentage completion
 percentages = [day / total_vehicle_days * 100 for day in positive_vehicle_days_true]
@@ -1428,7 +1473,7 @@ ax1.set_xlabel('Number of Chargers')
 ax1.set_ylabel('Grid Power [kW]')
 ax1.set_title('Maximum Home Grid Power per Vehicle per Scenario (HC = True)')
 
-ax1.set_ylim(0, 25)
+ax1.set_ylim(0, 30)
 
 # Calculate percentage completion
 percentages = [day / total_vehicle_days * 100 for day in positive_vehicle_days_true]
@@ -1491,8 +1536,8 @@ x_positions_percent = x_positions + 0.1
 axtwin = ax.twinx()
 axtwin.set_ylabel('Percentage Completion')
 axtwin.set_ylim(0, 100)
-axtwin.plot(x_positions, percentages_F, linestyle='-', color='#FFE6B9', label='No Home Charging')
-axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Home Charging')
+axtwin.plot(x_positions, percentages_F, linestyle='-', color='#FFE6B9', label='Depot Only Charging')
+axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Depot and Home Charging')
 
 
 axtwin.legend(loc='upper left')
@@ -1539,8 +1584,8 @@ x_positions_percent = x_positions + 0.1
 axtwin = ax.twinx()
 axtwin.set_ylabel('Percentage Completion')
 axtwin.set_ylim(0, 100)
-axtwin.plot(x_positions, percentages_F, linestyle='-', color='#FFE6B9', label='No Home Charging')
-axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Home Charging')
+axtwin.plot(x_positions, percentages_F, linestyle='-', color='#FFE6B9', label='Depot Only Charging')
+axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Depot and Home Charging')
 
 
 
@@ -1598,7 +1643,7 @@ x_positions_percent = x_positions + 0.1
 axtwin = ax.twinx()
 axtwin.set_ylabel('Percentage Completion')
 axtwin.set_ylim(0, 100)
-axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Home Charging')
+axtwin.plot(x_positions, percentages_T, linestyle='-', color='#ADD8E6', label='Depot and Home Charging')
 
 ax.legend(handles=legend_handles, loc='upper left')
 axtwin.legend(loc='upper right')
@@ -1783,7 +1828,7 @@ for i, (day, max_values) in enumerate(max_values_per_day_dict.items()):
 plt.xlabel('Day')
 plt.ylabel('Maximum Grid Power [kW]')
 plt.title('Maximum Grid Power for Different Number of Chargers')
-plt.ylim(0, 170)
+plt.ylim(0, 140)
 plt.legend(sce_folder_names)
 
 save_path = source_folder + 'Maximum_Power_Chargers.png'
