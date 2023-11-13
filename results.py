@@ -25,10 +25,9 @@ import numpy as np
 import seaborn as sns
 from scipy.stats import gaussian_kde
 
-#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Uncontrolled_Charging/'
-source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Smart_Charging_1/'
-#source_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/Fast_Charging/' 
-num_vehicles = 17
+source_folder = 'D:/Masters/Simulations/Simulation_3/Outputs/'
+ 
+num_vehicles = 32
 save_common = 'Day_'
 days = [str(num).zfill(2) for num in range(1, 32)]  # Days in the month
 
@@ -46,17 +45,64 @@ sce_folders = glob.glob(os.path.join(source_folder, 'SCE*'))
 ### For each SCE folder that has HC = False
 for sce_folder in sce_folders:
 
+    ### Steady state vehicle-days
+    # Overall
     positive_steady_state = 0
     positive_steady_state_oscilation = 0
     zero_steady_state_battery = 0
     zero_steady_state_chargers = 0
 
+    # GoMetro Data
+    positive_steady_state_gm = 0
+    positive_steady_state_oscilation_gm = 0
+    zero_steady_state_battery_gm = 0
+    zero_steady_state_chargers_gm = 0
+
+    # MixTelematics Data
+    positive_steady_state_mt = 0
+    positive_steady_state_oscilation_mt = 0
+    zero_steady_state_battery_mt = 0
+    zero_steady_state_chargers_mt = 0
+
+    # Intra City
+    positive_steady_state_intra = 0
+    positive_steady_state_oscilation_intra = 0
+    zero_steady_state_battery_intra = 0
+    zero_steady_state_chargers_intra = 0
+
+    # Inter City
+    positive_steady_state_inter = 0
+    positive_steady_state_oscilation_inter = 0
+    zero_steady_state_battery_inter = 0
+    zero_steady_state_chargers_inter = 0
+
+    ### Steady state distances
     postive_distances = []
     postive_distances_oscilation = []
     zero_distances_battery = []
     zero_distances_chargers = []
 
+    # Data
+    gm_distances = []
+    mt_distances = []
+
+    inter_distances = []
+    intra_distances = []
+
+    ### Totals
     total_vehicle_days = 0
+
+    total_gm_vehicle_days = 0
+    total_mt_vehicle_days = 0
+
+    total_intra_vehicle_days = 0
+    total_inter_vehicle_days = 0
+
+    total_intra_gm_vehicle_days = 0
+    total_inter_gm_vehicle_days = 0
+    total_intra_mt_vehicle_days = 0
+    total_inter_mt_vehicle_days = 0
+
 
     day_subfolders = glob.glob(os.path.join(sce_folder, 'Day*'))
     sce_folder_name = os.path.basename(sce_folder)
@@ -84,9 +130,11 @@ for sce_folder in sce_folders:
             
             soc_file_path = os.path.join(iteration_folder, 'soc.csv')
             dis_file_path = os.path.join(iteration_folder, 'distance.csv')
+            area_file_path = os.path.join(iteration_folder, 'area_location.csv')
 
             soc_dataframe = pd.read_csv(soc_file_path)
             dis_dataframe = pd.read_csv(dis_file_path)
+            area_dataframe = pd.read_csv(area_file_path)
 
 
             ### Determine if steady state is reached
@@ -143,6 +191,8 @@ for sce_folder in sce_folders:
                     # cycle through each vehicle and check
                     for vehicle_name in steady_state_soc.columns:
 
+                        vehicle_number = int(vehicle_name.split("_")[1])
+
                         if vehicle_steady_state[vehicle_name] == False:
 
                             first_values = np.array(steady_state_soc.loc[begin_start_row:begin_end_row, vehicle_name].to_list())
@@ -155,14 +205,43 @@ for sce_folder in sce_folders:
                                 vehicle_steady_state[vehicle_name] = True
                                 distance_sum = dis_dataframe[vehicle_name].sum() / 1000
 
+                                unique_values = area_dataframe[vehicle_name].unique()
+                                values_other_than_1_and_0 = any(value for value in unique_values if value not in [0, 1])
+
                                 if all(val == 0 for val in first_values) and all(val == 0 for val in end_values):
                                     ### Add steady state success to output
                                     if vehicle_zero_steady_state[vehicle_name] == True:
                                         zero_distances_battery.append(distance_sum)
                                         zero_steady_state_battery = zero_steady_state_battery + 1
+
+                                        # Inter/Intra City
+                                        if values_other_than_1_and_0:
+                                            zero_steady_state_battery_inter = zero_steady_state_battery_inter + 1
+                                        else:
+                                            zero_steady_state_battery_intra = zero_steady_state_battery_intra + 1
+
+                                        # Data
+                                        if vehicle_number < 18:
+                                            zero_steady_state_battery_gm = zero_steady_state_battery_gm + 1
+                                        else:
+                                            zero_steady_state_battery_mt = zero_steady_state_battery_mt + 1
+
+
                                     else:
                                         zero_distances_chargers.append(distance_sum)
                                         zero_steady_state_chargers = zero_steady_state_chargers + 1
+
+                                        # Inter/Intra City
+                                        if values_other_than_1_and_0:
+                                            zero_steady_state_chargers_inter = zero_steady_state_chargers_inter + 1
+                                        else:
+                                            zero_steady_state_chargers_intra = zero_steady_state_chargers_intra + 1
+
+                                        # Data
+                                        if vehicle_number < 18:
+                                            zero_steady_state_chargers_gm = zero_steady_state_chargers_gm + 1
+                                        else:
+                                            zero_steady_state_chargers_mt = zero_steady_state_chargers_mt + 1
 
                                 ### If positive steady state has been reached        
                                 else:
@@ -170,23 +249,138 @@ for sce_folder in sce_folders:
                                     if k <= 1:
                                         postive_distances.append(distance_sum)
                                         positive_steady_state = positive_steady_state + 1
+
+                                        # Inter/Intra City
+                                        if values_other_than_1_and_0:
+                                            positive_steady_state_inter = positive_steady_state_inter + 1
+                                        else:
+                                            positive_steady_state_intra = positive_steady_state_intra + 1
+
+                                        # Data
+                                        if vehicle_number < 18:
+                                            positive_steady_state_gm = positive_steady_state_gm + 1
+                                        else:
+                                            positive_steady_state_mt = positive_steady_state_mt + 1
+
                                     else:
                                         postive_distances_oscilation.append(distance_sum)
                                         positive_steady_state_oscilation = positive_steady_state_oscilation + 1
+
+                                        # Inter/Intra City
+                                        if values_other_than_1_and_0:
+                                            positive_steady_state_oscilation_inter = positive_steady_state_oscilation_inter + 1
+                                        else:
+                                            positive_steady_state_oscilation_intra = positive_steady_state_oscilation_intra + 1
+
+                                        # Data
+                                        if vehicle_number < 18:
+                                            positive_steady_state_oscilation_gm = positive_steady_state_oscilation_gm + 1
+                                        else:
+                                            positive_steady_state_oscilation_mt = positive_steady_state_oscilation_mt + 1
                                         
 
             vehicle_steady_state = {'Vehicle_' + str(i): False for i in range(1, num_vehicles + 1)}
-                
+
+        ### Get totals
+        for vehicle_name in soc_dataframe.columns:
+            vehicle_number = int(vehicle_name.split("_")[1])
+
+            unique_values = area_dataframe[vehicle_name].unique()
+            values_other_than_1_and_0 = any(value for value in unique_values if value not in [0, 1])
+
+            distance_sum = dis_dataframe[vehicle_name].sum() / 1000
+
+            ### Add for data totals
+            if vehicle_number < 18:
+                total_gm_vehicle_days = total_gm_vehicle_days + 1
+                gm_distances.append(distance_sum)
+            else:
+                total_mt_vehicle_days = total_mt_vehicle_days + 1
+                mt_distances.append(distance_sum)
+
+            ### Add for city data and combination
+            if values_other_than_1_and_0:
+                total_inter_vehicle_days = total_inter_vehicle_days + 1
+                inter_distances.append(distance_sum)
+
+                if vehicle_number < 18:
+                    total_inter_gm_vehicle_days = total_inter_gm_vehicle_days + 1
+                else:
+                    total_inter_mt_vehicle_days = total_inter_mt_vehicle_days + 1
+
+            else:
+                total_intra_vehicle_days = total_intra_vehicle_days + 1
+                intra_distances.append(distance_sum)
+
+                if vehicle_number < 18:
+                    total_intra_gm_vehicle_days = total_intra_gm_vehicle_days + 1
+                else:
+                    total_intra_mt_vehicle_days = total_intra_mt_vehicle_days + 1
+
         total_vehicle_days = total_vehicle_days + len(soc_dataframe.columns)
 
 
     ################################### Vehicle-day success rate ###########################################
-    print(f"Total Vehicle Days: {total_vehicle_days}")
+    print('\n') 
+    print('---------------- Overall Totals --------------------')
+    print(f"Total vehicle-days: {total_vehicle_days}")
 
     print(f"Total Positive Steady State: {positive_steady_state}")
     #print(f"Total Positive Steady State - Oscilations: {positive_steady_state_oscilation}")
     print(f"Total Zero Steady State - Battery: {zero_steady_state_battery}")
-    print(f"Total Zero Steady State - Charging: {zero_steady_state_chargers}")           
+    print(f"Total Zero Steady State - Charging: {zero_steady_state_chargers}") 
+    print('\n') 
+
+    print('---------------- Data Specific Totals --------------------')
+
+    print(f"Total Intra-city vehicle-days: {total_intra_vehicle_days}")
+    print(f"Total Inter-city vehicle-days: {total_inter_vehicle_days}")
+    print('\n') 
+    print(f"Total GoMetro vehicle-days: {total_gm_vehicle_days}")
+    print(f"Total MixTelematics vehicle-days: {total_mt_vehicle_days}")
+    print('\n') 
+    print(f"Total Intra-GoMetro vehicle-days: {total_intra_gm_vehicle_days}")
+    print(f"Total Intra-MixTelematics vehicle-days: {total_intra_mt_vehicle_days}")
+    print('\n') 
+    print(f"Total Inter-GoMetro vehicle-days: {total_inter_gm_vehicle_days}")
+    print(f"Total Inter-MixTelematics vehicle-days: {total_inter_mt_vehicle_days}")
+    print('\n') 
+
+    print('---------------- GoMetro Totals --------------------')
+    print(f"Total GoMetro vehicle-days: {total_gm_vehicle_days}")
+
+    print(f"Total GoMetro Positive: {positive_steady_state_gm}")
+    #print(f"Total GoMetro Positive - Oscilations: {positive_steady_state_oscilation_gm}")
+    print(f"Total GoMetro Zero - Battery: {zero_steady_state_battery_gm}")
+    print(f"Total GoMetro Zero - Charging: {zero_steady_state_chargers_gm}") 
+    print('\n')    
+
+    print('---------------- MixTelematics Totals --------------------')
+    print(f"Total MixTelematics vehicle-days: {total_mt_vehicle_days}")
+
+    print(f"Total MixTelematics Positive: {positive_steady_state_mt}")
+    #print(f"Total MixTelematics Positive - Oscilations: {positive_steady_state_oscilation_gm}")
+    print(f"Total MixTelematics Zero - Battery: {zero_steady_state_battery_mt}")
+    print(f"Total MixTelematics Zero - Charging: {zero_steady_state_chargers_mt}") 
+    print('\n')  
+
+    print('---------------- Intra-city Totals --------------------')
+    print(f"Total Intra vehicle-days: {total_intra_vehicle_days}")
+
+    print(f"Total Intra Positive: {positive_steady_state_intra}")
+    #print(f"Total Intra Positive - Oscilations: {positive_steady_state_oscilation_intra}")
+    print(f"Total Intra Zero - Battery: {zero_steady_state_battery_intra}")
+    print(f"Total Intra Zero - Charging: {zero_steady_state_chargers_intra}") 
+    print('\n')  
+
+    print('---------------- Inter-city Totals --------------------')
+    print(f"Total Inter vehicle-days: {total_inter_vehicle_days}")
+
+    print(f"Total Inter Positive: {positive_steady_state_inter}")
+    #print(f"Total Inter Positive - Oscilations: {positive_steady_state_oscilation_inter}")
+    print(f"Total Inter Zero - Battery: {zero_steady_state_battery_inter}")
+    print(f"Total Inter Zero - Charging: {zero_steady_state_chargers_inter}") 
+    print('\n')   
 
     print("Saving Graphs")
 
@@ -230,6 +424,82 @@ for sce_folder in sce_folders:
     plt.savefig(save_path, format = 'svg')
     # Save the plot to a specific location as a svg
     save_path = sce_folder + '/Distance_Histogram.pdf'
+    plt.savefig(save_path, format = 'pdf')
+
+    plt.close()
+
+
+    ##### Data specific information
+    # Calculate the range of the data for the non-empty sequences
+    data_range_1 = max(gm_distances) - min(gm_distances) if gm_distances else 0
+    data_range_2 = max(mt_distances) - min(mt_distances) if mt_distances else 0
+
+    desired_bin_width = 5  # Adjust as needed
+
+    # Calculate the number of bins based on the desired bin width
+    num_bins_1 = max(1, int(np.ceil(data_range_1 / desired_bin_width)))
+    num_bins_2 = max(1, int(np.ceil(data_range_2 / desired_bin_width)))
+
+
+    ### Plot the distance distribution for zero and positive steady state
+    plt.figure()
+    # Create a histogram for the list above x-axis
+    plt.hist(gm_distances, bins=num_bins_1, color='#fc0f03', alpha=0.7, label='GoMetro Data')
+    plt.hist(mt_distances, bins=num_bins_2, color='#03f8fc', alpha=0.7, label='MixTelematics Data')
+
+
+    #plt.title("Distance Distribution for Steady State")
+    plt.xlabel("Distance per Vehicle-day [km]", fontsize=16)
+    plt.ylabel("Frequency", fontsize=16)
+    plt.legend(fontsize=16)
+
+    plt.tight_layout()
+
+    save_path = sce_folder + '/Distance_Histogram_Data.png'
+    plt.savefig(save_path)
+    # Save the plot to a specific location as a svg
+    save_path = sce_folder + '/Distance_Histogram_Data.svg'
+    plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = sce_folder + '/Distance_Histogram_Data.pdf'
+    plt.savefig(save_path, format = 'pdf')
+
+    plt.close()
+
+
+    ##### Data specific information
+    # Calculate the range of the data for the non-empty sequences
+    data_range_1 = max(intra_distances) - min(intra_distances) if intra_distances else 0
+    data_range_2 = max(inter_distances) - min(inter_distances) if inter_distances else 0
+
+    desired_bin_width = 5  # Adjust as needed
+
+    # Calculate the number of bins based on the desired bin width
+    num_bins_1 = max(1, int(np.ceil(data_range_1 / desired_bin_width)))
+    num_bins_2 = max(1, int(np.ceil(data_range_2 / desired_bin_width)))
+
+
+    ### Plot the distance distribution for zero and positive steady state
+    plt.figure()
+    # Create a histogram for the list above x-axis
+    plt.hist(intra_distances, bins=num_bins_1, color='#02e31c', alpha=0.7, label='Intra-city')
+    plt.hist(inter_distances, bins=num_bins_2, color='#0227e3', alpha=0.7, label='Inter-city')
+
+
+    #plt.title("Distance Distribution for Steady State")
+    plt.xlabel("Distance per Vehicle-day [km]", fontsize=16)
+    plt.ylabel("Frequency", fontsize=16)
+    plt.legend(fontsize=16)
+
+    plt.tight_layout()
+
+    save_path = sce_folder + '/Distance_Histogram_City.png'
+    plt.savefig(save_path)
+    # Save the plot to a specific location as a svg
+    save_path = sce_folder + '/Distance_Histogram_City.svg'
+    plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = sce_folder + '/Distance_Histogram_City.pdf'
     plt.savefig(save_path, format = 'pdf')
 
     plt.close()

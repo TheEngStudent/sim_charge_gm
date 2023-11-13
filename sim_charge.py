@@ -55,11 +55,10 @@ import multiprocessing
 
 
 ### Change directory for each new simulation
-source_folder = 'D:/Masters/Simulations/Simulation_2/Usable_Data/'
-destination_folder = 'D:/Masters/Simulations/Simulation_2/Outputs/'
+source_folder = 'D:/Masters/Simulations/Simulation_3/Usable_Data/'
+destination_folder = 'D:/Masters/Simulations/Simulation_3/Outputs/'
 file_common = 'Vehicle_'
-file_name = 'vehicle_day_sec.csv'
-file_name_min = 'vehicle_day_min.csv'
+file_name_min = 'vehicle_day_final.csv'
 save_common = 'Day_'
 file_suffix = '.csv'
 
@@ -69,27 +68,38 @@ energy_consumption_folder = 'Original_EC/'
 charging_comsumption_folder = 'Charging_EC/'
 soc_folder = 'Daily_SOC/'
 charging_flag_folder = 'Charging_Flag/'
-available_charging_folder = 'Available_Charging/'
+available_charging_folder_SL = 'Available_Charging_SL/'
+available_charging_folder_SW = 'Available_Charging_SW/'
+available_charging_folder_BL = 'Available_Charging_BL/'
 grid_power_folder = 'Grid_Power/'
 home_charging_folder = 'Home_Charging/'
 distance_folder = 'Distance/'
+area_location_folder = 'Area_Location/'
 
-file_name_ac = 'Available_Charging'
+file_name_ac_sl = 'Available_Charging_SL'
+file_name_ac_sw = 'Available_Charging_SW'
+file_name_ac_bl = 'Available_Charging_BL'
 file_name_ec = 'Energy_Consumption'
 file_name_cf = 'Charging_Variable'
 file_name_soc = 'SOC'
 file_name_hc = 'Home_Charging'
 file_name_dis = 'Distance'
+file_name_area = 'Area_Location'
 
-save_name_ac = 'available_charging.csv'
+save_name_ac_sl = 'available_charging_sl.csv'
+save_name_ac_sw = 'available_charging_sw.csv'
+save_name_ac_bl = 'available_charging_bl.csv'
 save_name_ec = 'energy_consumption.csv'
 save_name_soc = 'soc.csv'
 save_name_cf = 'charging_variable.csv'
 save_name_gp = 'grid_power.csv'
-save_name_charger = 'charger_association.csv'
+save_name_charger_sl = 'charger_association_sl.csv'
+save_name_charger_sw = 'charger_association_sw.csv'
+save_name_charger_bl = 'charger_association_bl.csv'
 save_name_V_b = 'battery_voltage.csv'
 save_name_I_b = 'battery_current.csv'
 save_name_dis = 'distance.csv'
+save_name_area = 'area_location.csv'
 
 ### Constants for simulation
 # Battery Model Parameters
@@ -110,10 +120,14 @@ R_eq = (battery_parameters['M_s'] * battery_parameters['R_cell']) / battery_para
 
 # Grid Model Parameters
 grid_parameters = {
-    'num_chargers': 1,
-    'P_max': 150, # [kW]
+    'num_chargers_SL': 6,
+    'num_chargers_SW': 6,
+    'num_chargers_BL': 6,
+    'P_max_SL': 22, # [kW]
+    'P_max_SW': 22, # [kW]
+    'P_max_BL': 22, # [kW]
     'efficiency': 0.88,
-    'soc_upper_limit': 80, #TODO change to 80 for smart charging
+    'soc_upper_limit': 100, #TODO change to 80 for smart charging
     'soc_lower_limit': 0,
     'home_charge': True, # Set for each sim you wish to desire
     'home_power': 7.2 # [kW]
@@ -121,8 +135,8 @@ grid_parameters = {
 
 
 days = [str(num).zfill(2) for num in range(1, 32)]  # Days in the month
-bad_days = [15, 21, 22, 30] # Bad days within the data
-num_vehicles = 17 # Total number of vehicles used in the sim
+bad_days = [21, 22, 30] # Bad days within the data
+num_vehicles = 32 # Total number of vehicles used in the sim
 
 # length of lists
 length_days = len(days)
@@ -131,31 +145,40 @@ length_days = len(days)
 integer_list = list(range(0, 1440))
 total_items = len(integer_list)
 
-colour_list = [ '#d9ff00',
-                '#00ffd5',
-                '#00ff15',
-                '#f2ff00',
-                '#0019ff',
-                '#ffea00',
-                '#ff2f00',
-                '#00ff88',
-                '#ff9d00',
-                '#ef65db',
-                '#653a2a',
-                '#ffa200',
-                '#bfff00',
-                '#a481af',
-                '#e7596a',
-                '#d65fb2',
-                '#9f5d54',
-                '#a67311' ]
+colour_list = [
+    '#d9ff00', '#00ffd5', '#00ff15', '#f2ff00', '#0019ff', '#ffea00', '#ff2f00',
+    '#00ff88', '#ff9d00', '#ef65db', '#653a2a', '#ffa200', '#bfff00', '#a481af',
+    '#e7596a', '#d65fb2', '#9f5d54', '#a67311', '#ff7f50', '#87cefa', '#32cd32',
+    '#da70d6', '#ff4500', '#696969', '#2e8b57', '#8b008b', '#556b2f', '#ff8c00',
+    '#9932cc', '#8b0000', '#e9967a', '#8fbc8f', '#483d8b'
+]
 
 color_palette = {'Vehicle_' + str(i): colour_list[i - 1] for i in range(1, num_vehicles + 1)}
 
+
+### Create colour coordination for different data
+color_data = {}
+label_data = {}
+for i in range(1, num_vehicles + 1):
+    if i < 18:
+        color_data['Vehicle_' + str(i)] = '#fc0f03' # Use colors 1 to 18 for numbers less than or equal to 18
+        label_data['Vehicle_' + str(i)] = 'GoMetro Data'
+    else:
+        color_data['Vehicle_' + str(i)] = '#03f8fc'
+        label_data['Vehicle_' + str(i)] = 'MixTelematics Data'
+
+unique_labels = {'GoMetro Data': '#fc0f03', 'MixTelematics Data': '#03f8fc'}
+
+unique_labels_2 = {'Intra-city': '#02e31c', 
+                   'Inter-city': '#0227e3'}
+
+
+
+plt.rcParams['figure.dpi'] = 600
  
 ### Colour dictionary for vehicle tracking through each graph
 
-another_colour = colour_list[17]
+another_colour = colour_list[32]
 
 # Thread-safe printing using a lock
 print_lock = threading.Lock()
@@ -176,25 +199,9 @@ def create_folder(directory):
     # Create folder if not exist
     if not os.path.exists(directory):
         os.makedirs(directory)
-"""
-def progress_bar_thread(progress_queue, total_simulations, start_time):
-    while True:
-        try:
-            current, completed_simulations = progress_queue.get(timeout=0.5)
-            elapsed_time = int((time.time() - start_time) / 60)
-            percentage = (completed_simulations / total_simulations) * 100
-            bar_length = 40
-            filled_length = int(bar_length * percentage / 100)
-            bar = '=' * filled_length + '-' * (bar_length - filled_length)
-            with print_lock:
-                sys.stdout.write(f'\r[{bar}] {percentage:.2f}% Elapsed Time: {elapsed_time} minutes')
-                sys.stdout.flush()
-        except queue.Empty:
-            if all(f.done() for f in futures):
-                break
-"""
+
 # Main algorithm for calculating
-def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
+def simulate_charge(og_ec, og_ac_sl, og_ac_sw, og_ac_bl, og_soc, og_cf, og_hc, grid_power, charger_sl, charger_sw, charger_bl, priority_vehicles_sl, priority_vehicles_sw, priority_vehicles_bl, battery_capacity, pbar,
                     V_t, V_b, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc):
     
     # Initialise starting SOC
@@ -204,11 +211,13 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
     # Iterate over each row of og_ec
     for index in range(1, len(og_ec)):
         
-        row = og_ac.loc[index]
+        row = og_ac_sl.loc[index]
        
         # If SOC is below 100, the vehicle needs to be charged
         # only calculates new SOC later on, so has to be previous soc
-        charging_mask_ac = og_ac.loc[index] & (og_soc.loc[index - 1] < 100)
+        charging_mask_ac_sl = og_ac_sl.loc[index] & (og_soc.loc[index - 1] < 100)
+        charging_mask_ac_sw = og_ac_sw.loc[index] & (og_soc.loc[index - 1] < 100)
+        charging_mask_ac_bl = og_ac_bl.loc[index] & (og_soc.loc[index - 1] < 100)
 
         # Is home charging available
         if grid_parameters['home_charge'] == True:
@@ -216,76 +225,194 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
             og_cf.loc[index, charging_mask_hc] = -1
         
         ### Charger distribution algorithm
-        true_columns = og_ac.columns[charging_mask_ac]  # Get column labels with true values
-        row_headings = []
+        true_columns_sl = og_ac_sl.columns[charging_mask_ac_sl]
+        true_columns_sw = og_ac_sw.columns[charging_mask_ac_sw]
+        true_columns_bl = og_ac_bl.columns[charging_mask_ac_bl]  # Get column labels with true values
 
-        matrix = [[value1 == value2 for value2 in charger.loc[index - 1]] for value1 in true_columns]
+        row_headings_sl = []
+        row_headings_sw = []
+        row_headings_bl = []
+
+        matrix_sl = [[value1 == value2 for value2 in charger_sl.loc[index - 1]] for value1 in true_columns_sl]
+        matrix_sw = [[value1 == value2 for value2 in charger_sw.loc[index - 1]] for value1 in true_columns_sw]
+        matrix_bl = [[value1 == value2 for value2 in charger_bl.loc[index - 1]] for value1 in true_columns_bl]
+
         # Print matrix
-        for vehicle_name, row in zip(true_columns, matrix):
-            row_headings.append(vehicle_name)
-            # print(vehicle_name, row)
+        for vehicle_name, row in zip(true_columns_sl, matrix_sl):
+            row_headings_sl.append(vehicle_name)
+
+        for vehicle_name, row in zip(true_columns_sw, matrix_sw):
+            row_headings_sw.append(vehicle_name)
+
+        for vehicle_name, row in zip(true_columns_bl, matrix_bl):
+            row_headings_bl.append(vehicle_name)
+            
         
-        missing_vehicles = set(priority_vehicles).difference(row_headings)
+        missing_vehicles_sl = set(priority_vehicles_sl).difference(row_headings_sl)
+        missing_vehicles_sw = set(priority_vehicles_sw).difference(row_headings_sw)
+        missing_vehicles_bl = set(priority_vehicles_bl).difference(row_headings_bl)
+
         # Remove vehicle if it has lost its position to charge
-        for vehicle in missing_vehicles:
-            if vehicle in priority_vehicles:
-                priority_vehicles.remove(vehicle)
+        for vehicle in missing_vehicles_sl:
+            if vehicle in priority_vehicles_sl:
+                priority_vehicles_sl.remove(vehicle)
+
+        for vehicle in missing_vehicles_sw:
+            if vehicle in priority_vehicles_sw:
+                priority_vehicles_sw.remove(vehicle)
+        
+        for vehicle in missing_vehicles_bl:
+            if vehicle in priority_vehicles_bl:
+                priority_vehicles_bl.remove(vehicle)
         
         # Iterate over rows and row headings
-        for vehicle_name, row in zip(true_columns, matrix):
+        for vehicle_name, row in zip(true_columns_sl, matrix_sl):
             if any(row): # If vehicle has been assigned, keep vehicle in charger
                 column_index = row.index(True)
-                column_heading = charger.columns[column_index]
+                column_heading = charger_sl.columns[column_index]
 
-                charger.loc[index, column_heading] = vehicle_name
+                charger_sl.loc[index, column_heading] = vehicle_name
             else: # If vehicle has not been assigned charger, add to list of vehicles needing to be charged
                 # only add if vehicle is driving and hasn't gone flat
-                if og_cf.loc[index - 1, vehicle_name] != 2:
-                    if vehicle_name not in priority_vehicles:
-                        priority_vehicles.append(vehicle_name)
+                if og_cf.loc[index - 1, vehicle_name] != 4:
+                    if vehicle_name not in priority_vehicles_sl:
+                        priority_vehicles_sl.append(vehicle_name)
+
+        for vehicle_name, row in zip(true_columns_sw, matrix_sw):
+            if any(row): # If vehicle has been assigned, keep vehicle in charger
+                column_index = row.index(True)
+                column_heading = charger_sw.columns[column_index]
+
+                charger_sw.loc[index, column_heading] = vehicle_name
+            else: # If vehicle has not been assigned charger, add to list of vehicles needing to be charged
+                # only add if vehicle is driving and hasn't gone flat
+                if og_cf.loc[index - 1, vehicle_name] != 4:
+                    if vehicle_name not in priority_vehicles_sw:
+                        priority_vehicles_sw.append(vehicle_name)
+
+        for vehicle_name, row in zip(true_columns_bl, matrix_bl):
+            if any(row): # If vehicle has been assigned, keep vehicle in charger
+                column_index = row.index(True)
+                column_heading = charger_bl.columns[column_index]
+
+                charger_bl.loc[index, column_heading] = vehicle_name
+            else: # If vehicle has not been assigned charger, add to list of vehicles needing to be charged
+                # only add if vehicle is driving and hasn't gone flat
+                if og_cf.loc[index - 1, vehicle_name] != 4:
+                    if vehicle_name not in priority_vehicles_bl:
+                        priority_vehicles_bl.append(vehicle_name)
 
         # Reorganise pirioty_vehicles to have the lowest SOC at the top
-        priority_vehicles = sorted(priority_vehicles, key = lambda x: og_soc.loc[index - 1, x]) #TODO uncomment to have lowest SOC charge first, currently first in charges
+        #priority_vehicles_sl = sorted(priority_vehicles_sl, key = lambda x: og_soc.loc[index - 1, x]) #TODO uncomment to have lowest SOC charge first, currently first in charges
+        #priority_vehicles_sw = sorted(priority_vehicles_sw, key = lambda x: og_soc.loc[index - 1, x])
+        #priority_vehicles_bl = sorted(priority_vehicles_bl, key = lambda x: og_soc.loc[index - 1, x])
 
-        for k in range(0, len(priority_vehicles)):
-            if any(charger.loc[index] == ''): # If available charger, add vehicle to it
-                next_col = charger.loc[index].eq('').idxmax()
-                charger.loc[index, next_col] = priority_vehicles[0]
-                priority_vehicles.pop(0)
+        for k in range(0, len(priority_vehicles_sl)):
+            if any(charger_sl.loc[index] == ''): # If available charger, add vehicle to it
+                next_col = charger_sl.loc[index].eq('').idxmax()
+                charger_sl.loc[index, next_col] = priority_vehicles_sl[0]
+                priority_vehicles_sl.pop(0)
             else:
                 # Check if there is a vehicle with an SOC higher than 80% that is on charge
                 # If there is, remove vehicle from charger and add it to prirority_vehicles
                 # Top value from priority_vehicles gets added to charger
-                highest_soc_remove = sorted(charger.loc[index], key = lambda x: og_soc.loc[index - 1, x], reverse = True)
+                highest_soc_remove = sorted(charger_sl.loc[index], key = lambda x: og_soc.loc[index - 1, x], reverse = True)
 
                 for w in range(0, len(highest_soc_remove)):
 
-                    if og_soc.loc[index - 1, priority_vehicles[0]] < grid_parameters['soc_upper_limit']: # It should only swap vehicles if the soc in priority vehicles is less than 80
+                    if og_soc.loc[index - 1, priority_vehicles_sl[0]] < grid_parameters['soc_upper_limit']: # It should only swap vehicles if the soc in priority vehicles is less than 80
 
                         column_name = highest_soc_remove[w] # Assign the highest column name with the highest soc to remove first
                         if og_soc.loc[index - 1, column_name] >= grid_parameters['soc_upper_limit']:
-                            column_to_replace = charger.loc[index] == column_name # find the location where that value is
-                            charger.loc[index, column_to_replace.idxmax()] = priority_vehicles[0] # make it equal to the highest priority vehicle
-                            priority_vehicles.pop(0)
-                            if vehicle_name not in priority_vehicles:
-                                priority_vehicles.append(column_name) # add the vehicle that was on charge to priority list
+                            column_to_replace = charger_sl.loc[index] == column_name # find the location where that value is
+                            charger_sl.loc[index, column_to_replace.idxmax()] = priority_vehicles_sl[0] # make it equal to the highest priority vehicle
+                            priority_vehicles_sl.pop(0)
+                            if vehicle_name not in priority_vehicles_sl:
+                                priority_vehicles_sl.append(column_name) # add the vehicle that was on charge to priority list
+
+                    else:    
+                        break # If no available slot, break for loop to save processing power
+
+        for k in range(0, len(priority_vehicles_sw)):
+            if any(charger_sw.loc[index] == ''): # If available charger, add vehicle to it
+                next_col = charger_sw.loc[index].eq('').idxmax()
+                charger_sw.loc[index, next_col] = priority_vehicles_sw[0]
+                priority_vehicles_sw.pop(0)
+            else:
+                # Check if there is a vehicle with an SOC higher than 80% that is on charge
+                # If there is, remove vehicle from charger and add it to prirority_vehicles
+                # Top value from priority_vehicles gets added to charger
+                highest_soc_remove = sorted(charger_sw.loc[index], key = lambda x: og_soc.loc[index - 1, x], reverse = True)
+
+                for w in range(0, len(highest_soc_remove)):
+
+                    if og_soc.loc[index - 1, priority_vehicles_sw[0]] < grid_parameters['soc_upper_limit']: # It should only swap vehicles if the soc in priority vehicles is less than 80
+
+                        column_name = highest_soc_remove[w] # Assign the highest column name with the highest soc to remove first
+                        if og_soc.loc[index - 1, column_name] >= grid_parameters['soc_upper_limit']:
+                            column_to_replace = charger_sw.loc[index] == column_name # find the location where that value is
+                            charger_sw.loc[index, column_to_replace.idxmax()] = priority_vehicles_sw[0] # make it equal to the highest priority vehicle
+                            priority_vehicles_sw.pop(0)
+                            if vehicle_name not in priority_vehicles_sw:
+                                priority_vehicles_sw.append(column_name) # add the vehicle that was on charge to priority list
+
+                    else:    
+                        break # If no available slot, break for loop to save processing power
+
+        for k in range(0, len(priority_vehicles_bl)):
+            if any(charger_bl.loc[index] == ''): # If available charger, add vehicle to it
+                next_col = charger_bl.loc[index].eq('').idxmax()
+                charger_bl.loc[index, next_col] = priority_vehicles_bl[0]
+                priority_vehicles_bl.pop(0)
+            else:
+                # Check if there is a vehicle with an SOC higher than 80% that is on charge
+                # If there is, remove vehicle from charger and add it to prirority_vehicles
+                # Top value from priority_vehicles gets added to charger
+                highest_soc_remove = sorted(charger_bl.loc[index], key = lambda x: og_soc.loc[index - 1, x], reverse = True)
+
+                for w in range(0, len(highest_soc_remove)):
+
+                    if og_soc.loc[index - 1, priority_vehicles_bl[0]] < grid_parameters['soc_upper_limit']: # It should only swap vehicles if the soc in priority vehicles is less than 80
+
+                        column_name = highest_soc_remove[w] # Assign the highest column name with the highest soc to remove first
+                        if og_soc.loc[index - 1, column_name] >= grid_parameters['soc_upper_limit']:
+                            column_to_replace = charger_bl.loc[index] == column_name # find the location where that value is
+                            charger_bl.loc[index, column_to_replace.idxmax()] = priority_vehicles_bl[0] # make it equal to the highest priority vehicle
+                            priority_vehicles_bl.pop(0)
+                            if vehicle_name not in priority_vehicles_bl:
+                                priority_vehicles_bl.append(column_name) # add the vehicle that was on charge to priority list
 
                     else:    
                         break # If no available slot, break for loop to save processing power
 
         ### Update og_cf based on charger distibution
-        for charger_col in charger.columns:
-            assigned_vehicle = charger.loc[index, charger_col]
+        for charger_col in charger_sl.columns:
+            assigned_vehicle = charger_sl.loc[index, charger_col]
             if assigned_vehicle:
                 og_cf.loc[index, assigned_vehicle] = 1
+
+        for charger_col in charger_sw.columns:
+            assigned_vehicle = charger_sw.loc[index, charger_col]
+            if assigned_vehicle:
+                og_cf.loc[index, assigned_vehicle] = 2
+
+        for charger_col in charger_bl.columns:
+            assigned_vehicle = charger_bl.loc[index, charger_col]
+            if assigned_vehicle:
+                og_cf.loc[index, assigned_vehicle] = 3
         
+
+
+
+
+
         ### Calculate battery characteristics
         for col_name in og_soc.columns:
 
             # Check if vehicle has gone below 0% for the day
             if og_soc.loc[index - 1, col_name] <= grid_parameters['soc_lower_limit']:
                 vehicle_valid_drive[col_name] = False
-                og_cf.loc[index, col_name] = 2
+                og_cf.loc[index, col_name] = 4
 
             # Calculate open circuit voltage
             V_oc.loc[index, col_name] = battery_parameters['a_v']*( (og_soc.loc[index - 1, col_name]/100)*battery_parameters['E_nom'] ) + battery_parameters['b_v']
@@ -294,11 +421,17 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
 
             ### Check to see if the vehicle is on charge
             # Update the necessary power and battery characteristics
-            if og_cf.loc[index, col_name] == 1:
+            if og_cf.loc[index, col_name] == 1 or og_cf.loc[index, col_name] == 2 or og_cf.loc[index, col_name] == 3:
 
                 # Vehicle is charging at constant power (CP)
                 if CP_flag[col_name] == 1:
-                    grid_power.loc[index, col_name] = grid_parameters['P_max']*1000
+
+                    if og_cf.loc[index, col_name] == 1:
+                        grid_power.loc[index, col_name] = grid_parameters['P_max_SL']*1000
+                    elif og_cf.loc[index, col_name] == 2:
+                        grid_power.loc[index, col_name] = grid_parameters['P_max_SW']*1000
+                    else:
+                        grid_power.loc[index, col_name] = grid_parameters['P_max_BL']*1000
 
                     V_b.loc[index, col_name] = V_oc_eq.loc[index, col_name]/2 + math.sqrt( grid_parameters['efficiency']*grid_power.loc[index, col_name]*R_eq 
                                                     + 0.25*(V_oc_eq.loc[index, col_name] ** 2) )
@@ -384,7 +517,7 @@ def simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, pri
 
                 if og_soc.loc[index, col_name] > 100:
                     og_soc.loc[index, col_name] = 100
-            # Vehicle is not charging and flat, og_cf == 2
+            # Vehicle is not charging and flat, og_cf == 4
             else:
                 og_soc.loc[index, col_name] = 0
                 grid_power.loc[index, col_name] = 0
@@ -432,7 +565,6 @@ def save_individual_graphs(og_soc, V_b, save_folder, day, timedelta_index):
 
         ax1.set_title(column)
 
-        plt.rcParams['figure.dpi'] = 600
                         
         # Save the plot to a specific location as a png
         save_path = save_folder + column + '_' + day + '.png'
@@ -449,7 +581,7 @@ def save_individual_graphs(og_soc, V_b, save_folder, day, timedelta_index):
         plt.close(fig)  
 
 
-def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, num_vehicles_day):
+def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, num_vehicles_day, og_area):
 
     ### Plot and save all vehicles graph
     plt.figure()
@@ -471,7 +603,6 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
     # Adding the solid black line at y = 0
     plt.axhline(y=0, color='black', linewidth=plt.gca().spines['bottom'].get_linewidth())
 
-
     save_path = save_folder + 'Day_' + day + '_SOC.png'
     plt.savefig(save_path)
     # Save the plot to a specific location as a svg
@@ -482,6 +613,80 @@ def save_complete_graphs(og_soc, grid_power, day, save_folder, timedelta_index, 
     plt.savefig(save_path, format = 'pdf')
 
     plt.close()
+
+
+    ### Plot and save all vehicles graph according to data
+    plt.figure()
+    for column in og_soc.columns:
+        plt.plot(timedelta_index, og_soc[column], color = color_data[column])
+    plt.xlabel('Time of Day')
+    plt.ylabel('SOC [%]')
+    plt.title('Day_' + day + ' SOC Data')
+    plt.ylim(-20, 140)
+    plt.tight_layout()
+    plt.xticks(rotation=45)
+
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    plt.legend(handles=[plt.Line2D([0], [0], color=color, label=label) for label, color in unique_labels.items()], loc='upper center', ncol=2)
+    plt.subplots_adjust(bottom = 0.2)
+
+    # Adding the solid black line at y = 0
+    plt.axhline(y=0, color='black', linewidth=plt.gca().spines['bottom'].get_linewidth())
+
+
+    save_path = save_folder + 'Day_' + day + '_SOC_Data.png'
+    plt.savefig(save_path)
+    # Save the plot to a specific location as a svg
+    save_path = save_folder + 'Day_' + day + '_SOC_Data.svg'
+    plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = save_folder + 'Day_' + day + '_SOC_Data.pdf'
+    plt.savefig(save_path, format = 'pdf')
+
+    plt.close()
+
+    ### Plot and save all vehicles graph according to area travelled
+    plt.figure()
+    for column in og_soc.columns:
+        unique_values = og_area[column].unique()
+        values_other_than_1_and_0 = any(value for value in unique_values if value not in [0, 1])
+        if values_other_than_1_and_0:
+            color = '#0227e3'
+        else:
+            color = '#02e31c'
+         
+        plt.plot(timedelta_index, og_soc[column], color = color)
+    plt.xlabel('Time of Day')
+    plt.ylabel('SOC [%]')
+    plt.title('Day_' + day + ' SOC Inter vs Intra')
+    plt.ylim(-20, 140)
+    plt.tight_layout()
+    plt.xticks(rotation=45)
+
+    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    plt.gca().xaxis.set_major_locator(mdates.AutoDateLocator())
+
+    plt.legend(handles=[plt.Line2D([0], [0], color=color, label=label) for label, color in unique_labels_2.items()], loc='upper center', ncol=4)
+    plt.subplots_adjust(bottom = 0.2)
+
+    # Adding the solid black line at y = 0
+    plt.axhline(y=0, color='black', linewidth=plt.gca().spines['bottom'].get_linewidth())
+
+
+    save_path = save_folder + 'Day_' + day + '_SOC_City.png'
+    plt.savefig(save_path)
+    # Save the plot to a specific location as a svg
+    save_path = save_folder + 'Day_' + day + '_SOC_City.svg'
+    plt.savefig(save_path, format = 'svg')
+    # Save the plot to a specific location as a svg
+    save_path = save_folder + 'Day_' + day + '_SOC_City.pdf'
+    plt.savefig(save_path, format = 'pdf')
+
+    plt.close()
+
+
 
     ### Plot grid power usage
     grid_sums = grid_power.sum(axis = 1)
@@ -560,19 +765,22 @@ def delete_files_with_bad_days(folder_path, bad_days):
                     print(f"Error deleting {file_path}: {e}")
 
 
-
+"""
 ########################################################################################################################
 ################### Create nescessary original files that the simulation runs off of ###################################
 ########################################################################################################################
-"""
+
 num_folders = count_folders(source_folder)
 
 for k in range(0, length_days):  # Cycle through for each day
 
     data_list_ec = []  # create empty list to combine data at the end
-    data_list_ac = []
+    data_list_ac_sl = []
+    data_list_ac_sw = []
+    data_list_ac_bl = []
     data_list_hc = []
     data_list_dis = []
+    data_list_area = []
 
     name_list = []  # create empty list for valid vehicles
 
@@ -591,9 +799,12 @@ for k in range(0, length_days):  # Cycle through for each day
             df = pd.read_csv(full_path)
             
             data_list_ec.append(df['Energy_Consumption'])
-            data_list_ac.append(df['Available_Charging'])
+            data_list_ac_sl.append(df['Available_Charging_SL'])
+            data_list_ac_sw.append(df['Available_Charging_SW'])
+            data_list_ac_bl.append(df['Available_Charging_BL'])
             data_list_hc.append(df['Home_Charging'])
             data_list_dis.append(df['Distance'])
+            data_list_area.append(df['Area_Location'])
             name_list.append(str(i))
         else:
             # File path does not exist, skip
@@ -614,15 +825,37 @@ for k in range(0, length_days):  # Cycle through for each day
 
         ### For Available_Charging data
         # Perform functions when the list is not empty
-        combined_data_ac = pd.concat(data_list_ac, axis=1)
+        combined_data_ac_sl = pd.concat(data_list_ac_sl, axis=1)
         vehicle_columns = [file_common + name for name in name_list]
-        combined_data_ac.columns = vehicle_columns
+        combined_data_ac_sl.columns = vehicle_columns
         # Save the combined DataFrame to a CSV file
-        save_name = save_common + days[k] + '_' + file_name_ac + file_suffix
-        save_folder = destination_folder + original_folder + available_charging_folder
+        save_name = save_common + days[k] + '_' + file_name_ac_sl + file_suffix
+        save_folder = destination_folder + original_folder + available_charging_folder_SL
         save_path = save_folder + save_name
         create_folder(save_folder)
-        combined_data_ac.to_csv(save_path, index=False)
+        combined_data_ac_sl.to_csv(save_path, index=False)
+
+        # Perform functions when the list is not empty
+        combined_data_ac_sw = pd.concat(data_list_ac_sw, axis=1)
+        vehicle_columns = [file_common + name for name in name_list]
+        combined_data_ac_sw.columns = vehicle_columns
+        # Save the combined DataFrame to a CSV file
+        save_name = save_common + days[k] + '_' + file_name_ac_sw + file_suffix
+        save_folder = destination_folder + original_folder + available_charging_folder_SW
+        save_path = save_folder + save_name
+        create_folder(save_folder)
+        combined_data_ac_sw.to_csv(save_path, index=False)
+
+        # Perform functions when the list is not empty
+        combined_data_ac_bl = pd.concat(data_list_ac_bl, axis=1)
+        vehicle_columns = [file_common + name for name in name_list]
+        combined_data_ac_bl.columns = vehicle_columns
+        # Save the combined DataFrame to a CSV file
+        save_name = save_common + days[k] + '_' + file_name_ac_bl + file_suffix
+        save_folder = destination_folder + original_folder + available_charging_folder_BL
+        save_path = save_folder + save_name 
+        create_folder(save_folder)
+        combined_data_ac_bl.to_csv(save_path, index=False)
 
         ### For Home_Charging data
         # Perform functions when the list is not empty
@@ -667,6 +900,18 @@ for k in range(0, length_days):  # Cycle through for each day
         save_path = save_folder + save_name
         create_folder(save_folder)
         combined_data_cf.to_csv(save_path, index=False)
+
+        ### For Available_Charging data
+        # Perform functions when the list is not empty
+        combined_data_area = pd.concat(data_list_area, axis=1)
+        vehicle_columns = [file_common + name for name in name_list]
+        combined_data_area.columns = vehicle_columns
+        # Save the combined DataFrame to a CSV file
+        save_name = save_common + days[k] + '_' + file_name_area + file_suffix
+        save_folder = destination_folder + original_folder + area_location_folder
+        save_path = save_folder + save_name
+        create_folder(save_folder)
+        combined_data_area.to_csv(save_path, index=False)
         
     else:
         # Skip over when the list is empty
@@ -676,15 +921,15 @@ for k in range(0, length_days):  # Cycle through for each day
 read_directory = destination_folder + original_folder
 delete_files_with_bad_days(read_directory, bad_days)
 
-
 """
+
 
 #######################################################################################################################
 ############################################ Main simulating code #####################################################
 #######################################################################################################################
 
 ### Initialise scenario
-scenario_folder = 'SCE_' + str(grid_parameters['P_max']) + 'kW_N' + str(grid_parameters['num_chargers']) + '_B' + str(round(battery_capacity/1000)) + '_HC_' + str(grid_parameters['home_charge']) + '/'
+scenario_folder = 'SCE_' + str(grid_parameters['P_max_SL']) + '-' + str(grid_parameters['P_max_SW']) + '-' + str(grid_parameters['P_max_BL']) + 'kW_N' + str(grid_parameters['num_chargers_SL']) + '-' + str(grid_parameters['num_chargers_SW']) + '-' + str(grid_parameters['num_chargers_BL']) + '_B' + str(round(battery_capacity/1000)) + '_HC_' + str(grid_parameters['home_charge']) + '/'
 print(f'Scenario {scenario_folder}')
 save_folder = destination_folder + scenario_folder
 create_folder(save_folder)
@@ -696,18 +941,24 @@ def simulate_day(m):
     
     # Create file paths to read nescessary data
     read_name_ec = save_common + days[m] + '_' + file_name_ec + file_suffix # Day_i_Data.csv
-    read_name_ac = save_common + days[m] + '_' + file_name_ac + file_suffix
+    read_name_ac_sl = save_common + days[m] + '_' + file_name_ac_sl + file_suffix
+    read_name_ac_sw = save_common + days[m] + '_' + file_name_ac_sw + file_suffix
+    read_name_ac_bl = save_common + days[m] + '_' + file_name_ac_bl + file_suffix
     read_name_soc = save_common + days[m] + '_' + file_name_soc + file_suffix
     read_name_cf = save_common + days[m] + '_' + file_name_cf + file_suffix
     read_name_hc = save_common + days[m] + '_' + file_name_hc + file_suffix
     read_name_dis = save_common + days[m] + '_' + file_name_dis + file_suffix
+    read_name_area = save_common + days[m] + '_' + file_name_area + file_suffix
 
     read_path_ec = destination_folder + original_folder + energy_consumption_folder + read_name_ec
-    read_path_ac = destination_folder + original_folder + available_charging_folder + read_name_ac
+    read_path_ac_sl = destination_folder + original_folder + available_charging_folder_SL + read_name_ac_sl
+    read_path_ac_sw = destination_folder + original_folder + available_charging_folder_SW + read_name_ac_sw
+    read_path_ac_bl = destination_folder + original_folder + available_charging_folder_BL + read_name_ac_bl
     read_path_soc = destination_folder + original_folder + soc_folder + read_name_soc
     read_path_cf = destination_folder + original_folder + charging_flag_folder + read_name_cf
     read_path_hc = destination_folder + original_folder + home_charging_folder + read_name_hc
     read_path_dis = destination_folder + original_folder + distance_folder + read_name_dis
+    read_path_area = destination_folder + original_folder + area_location_folder + read_name_area
 
     # If file exists for one day then that day exists
     if os.path.exists(read_path_ec):
@@ -719,17 +970,20 @@ def simulate_day(m):
         
         # Read the nescessary files
         og_ec = pd.read_csv(read_path_ec)
-        og_ac = pd.read_csv(read_path_ac)
+        og_ac_sl = pd.read_csv(read_path_ac_sl)
+        og_ac_sw = pd.read_csv(read_path_ac_sw)
+        og_ac_bl = pd.read_csv(read_path_ac_bl)
         og_soc = pd.read_csv(read_path_soc)
         og_cf = pd.read_csv(read_path_cf)
         og_hc = pd.read_csv(read_path_hc)
         og_dis = pd.read_csv(read_path_dis)
+        og_area = pd.read_csv(read_path_area)
 
         
         num_vehicles_day = len(og_soc.columns)
 
         # If there is vehicles to simulate, then simulate
-        if not og_ac.empty:
+        if not og_ac_sl.empty:
 
             # Declare variables
             vehicle_valid_drive = {'Vehicle_' + str(i): True for i in range(1, num_vehicles + 1)}
@@ -747,16 +1001,21 @@ def simulate_day(m):
                 # Initialise variables
                 # Read the nescessary files
                 og_ec = pd.read_csv(read_path_ec)
-                og_ac = pd.read_csv(read_path_ac)
+                og_ac_sl = pd.read_csv(read_path_ac_sl)
+                og_ac_sw = pd.read_csv(read_path_ac_sw)
+                og_ac_bl = pd.read_csv(read_path_ac_bl)
                 og_soc = pd.read_csv(read_path_soc)
                 og_cf = pd.read_csv(read_path_cf)
                 og_hc = pd.read_csv(read_path_hc)
                 og_dis = pd.read_csv(read_path_dis)
+                og_area = pd.read_csv(read_path_area)
 
                 # Create nescessary other data frames
                 grid_power = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
 
-                charger = pd.DataFrame('', index = range(len(og_ec)), columns = [f'Charger_{w}' for w in range(1, grid_parameters['num_chargers'] + 1)])
+                charger_sl = pd.DataFrame('', index = range(len(og_ec)), columns = [f'Charger_{w}' for w in range(1, grid_parameters['num_chargers_SL'] + 1)])
+                charger_sw = pd.DataFrame('', index = range(len(og_ec)), columns = [f'Charger_{w}' for w in range(1, grid_parameters['num_chargers_SW'] + 1)])
+                charger_bl = pd.DataFrame('', index = range(len(og_ec)), columns = [f'Charger_{w}' for w in range(1, grid_parameters['num_chargers_BL'] + 1)])
 
                 # Battery characteriistic dataframes
                 V_t = pd.DataFrame(0, index = range(total_items), columns = og_ec.columns)
@@ -771,7 +1030,9 @@ def simulate_day(m):
 
                 ### Re-initialise each vehicle to constant power charging
                 CP_flag = {'Vehicle_' + str(i): 1 for i in range(1, num_vehicles + 1)}
-                priority_vehicles = []
+                priority_vehicles_sl = []
+                priority_vehicles_sw = []
+                priority_vehicles_bl = []
                 #print(f'Day {days[m]} Simulating - I_{iteration}')
                 #start_time = time.time()
 
@@ -779,8 +1040,8 @@ def simulate_day(m):
                 with tqdm(total=1440, desc=f"Day {days[m]} Simulating - I_{iteration}", position=m) as pbar:
 
                     ### Simulate actual data
-                    simulate_charge(og_ec, og_ac, og_soc, og_cf, og_hc, grid_power, charger, priority_vehicles, battery_capacity, pbar,
-                                    V_t, V_b, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
+                    simulate_charge(og_ec, og_ac_sl, og_ac_sw, og_ac_bl, og_soc, og_cf, og_hc, grid_power, charger_sl, charger_sw, charger_bl, priority_vehicles_sl, priority_vehicles_sw, priority_vehicles_bl, 
+                                    battery_capacity, pbar, V_t, V_b, I_b, V_oc, V_oc_eq, CP_flag, battery_parameters, grid_parameters, vehicle_valid_drive, start_vehicle_soc) # Does the actual simulating of vehicles
                     #print('\n')
 
 
@@ -845,8 +1106,8 @@ def simulate_day(m):
 
                 ### Plot and save individual vehicle graphs
                 print('\nSaving graphs')
-                save_individual_graphs(og_soc, V_b, save_folder_2, days[m], timedelta_index)
-                save_complete_graphs(og_soc, grid_power, days[m], save_folder_2, timedelta_index, num_vehicles_day)
+                #save_individual_graphs(og_soc, V_b, save_folder_2, days[m], timedelta_index)
+                save_complete_graphs(og_soc, grid_power, days[m], save_folder_2, timedelta_index, num_vehicles_day, og_area)
                     
                 ### Save dataframes
                 print('Saving files')
@@ -856,8 +1117,14 @@ def simulate_day(m):
                 save_path = save_folder_2 + save_name_cf
                 og_cf.to_csv(save_path, index=False)
 
-                save_path = save_folder_2 + save_name_ac
-                og_ac.to_csv(save_path, index=False)
+                save_path = save_folder_2 + save_name_ac_sl
+                og_ac_sl.to_csv(save_path, index=False)
+
+                save_path = save_folder_2 + save_name_ac_sw
+                og_ac_sw.to_csv(save_path, index=False)
+
+                save_path = save_folder_2 + save_name_ac_bl
+                og_ac_bl.to_csv(save_path, index=False)
 
                 save_path = save_folder_2 + save_name_soc
                 og_soc.to_csv(save_path, index=False)
@@ -868,8 +1135,17 @@ def simulate_day(m):
                 save_path = save_folder_2 + save_name_gp
                 grid_power.to_csv(save_path, index=False)
 
-                save_path = save_folder_2 + save_name_charger
-                charger.to_csv(save_path, index=False)
+                save_path = save_folder_2 + save_name_charger_sl
+                charger_sl.to_csv(save_path, index=False)
+
+                save_path = save_folder_2 + save_name_charger_sw
+                charger_sw.to_csv(save_path, index=False)
+
+                save_path = save_folder_2 + save_name_charger_bl
+                charger_bl.to_csv(save_path, index=False)
+
+                save_path = save_folder_2 + save_name_area
+                og_area.to_csv(save_path, index=False)
 
                 save_path = save_folder_2 + save_name_V_b
                 V_b.to_csv(save_path, index=False)
@@ -947,3 +1223,4 @@ if __name__ == '__main__':
             future.result()
 
     print("All simulations complete.")
+

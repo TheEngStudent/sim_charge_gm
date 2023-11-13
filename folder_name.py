@@ -15,10 +15,42 @@ import shutil
 import gzip
 
 ### Change these directories for script usage if a new simulation is being done
-source_folder_1 = "D:\Masters\Chris Data Model\Scenario_GoMetro\EV_Simulation\EV_Simulation_Outputs"
-source_folder_2 = "D:\Masters\Chris Data Model\Scenario_GoMetro\Mobility_Simulation\FCD_Data"
+source_folder_1 = "D:\Masters\Chris Data Model\Scenario_Combined\EV_Simulation\EV_Simulation_Outputs"
+source_folder_2 = "D:\Masters\Chris Data Model\Scenario_Combined\Mobility_Simulation\FCD_Data"
 
-destination_folder = "D:\Masters\Simulations\Simulation_2\Inputs"
+destination_folder = "D:\Masters\Simulations\Simulation_3\Inputs"
+
+year_mapping_2014 = {
+    '03': '01',
+    '04': '02',
+    '05': '03',
+    '06': '04',
+    '07': '00',
+    '10': '07',
+    '11': '08',
+    '12': '09',
+    '13': '10',
+    '14': '11',
+    '17': '14',
+    '18': '15',
+    '19': '16',
+    '20': '17',
+    '21': '18',
+    '24': '23',
+    '25': '24',
+    '26': '25',
+    '27': '28',
+    '28': '29'
+}
+
+year_mapping_2013 = {
+    '19': '14',
+    '20': '15',
+    '21': '16',
+    '26': '23',
+    '27': '24',
+    '28': '25'
+}
 
 # Create and copy file structure function
 def copy_folder_structure(source_folder, destination_folder):
@@ -48,7 +80,23 @@ def rename_subfolders_in_path(path):
             for subfolder_name in os.listdir(folder_path):
                 subfolder_path = os.path.join(folder_path, subfolder_name)
                 if os.path.isdir(subfolder_path):
-                    subfolder_prefix = f"{folder_name}_{subfolder_name[-2:]}"
+                    # Check if subfolder name starts with '2014' or '2013'
+                    if subfolder_name.startswith('2014'):
+                        # Extract the last two digits
+                        last_two_digits = subfolder_name[-2:]
+                        # Get the mapped value from the dictionary, or keep the last two digits if not found
+                        mapped_value = year_mapping_2014.get(last_two_digits, last_two_digits)
+                        subfolder_prefix = f"{folder_name}_{mapped_value}"
+                    elif subfolder_name.startswith('2013'):
+                        # Extract the last two digits
+                        last_two_digits = subfolder_name[-2:]
+                        # Get the mapped value from the '2013' dictionary, or keep the last two digits if not found
+                        mapped_value = year_mapping_2013.get(last_two_digits, last_two_digits)
+                        subfolder_prefix = f"{folder_name}_{mapped_value}"
+                    else:
+                        # If it doesn't start with '2014' or '2013', use the last two digits as is
+                        subfolder_prefix = f"{folder_name}_{subfolder_name[-2:]}"
+                    
                     new_subfolder_name = subfolder_prefix
                     new_subfolder_path = os.path.join(folder_path, new_subfolder_name)
                     os.rename(subfolder_path, new_subfolder_path)

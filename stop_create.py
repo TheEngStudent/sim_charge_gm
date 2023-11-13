@@ -17,7 +17,7 @@ import sys
 import time
 
 
-source_folder = "D:\Masters\Simulations\Simulation_2\Inputs"
+source_folder = "D:\Masters\Simulations\Simulation_3\Inputs"
 
 
 # Display progress bar for simulation

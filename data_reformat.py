@@ -15,10 +15,10 @@
     This is done to test if indeed the vehicle has driven or if there is bad data that exists. This is is then
     transformed to the following vehicle_day format to be used by sim_charge.
 
-    Time_of_Day | Energy_Consumption    | Latitude  | Longitude | Stop      | 20_Min_Stop   | Hub_Location  | Available_Charging    | HC_Location   | Home_Charging |   Distance     
-    --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    (string)    | (float)               | (float)   | (float)   | (boolean) | (boolean)     | (boolean)     | (boolean)             | (boolean)     | (boolean)     |   (float)
-    [YYYY/MM/DD | [Wh/s]                | [degres]  | [degrees] |           |               |               |                       |               |               |   [meters]
+    Time_of_Day | Energy_Consumption    | Latitude  | Longitude | Stop      | 20_Min_Stop   | 10_Min_Stop   | 5_Min_Stop    |  Distance     
+    --------------------------------------------------------------------------------------------------------------------------------------
+    (string)    | (float)               | (float)   | (float)   | (boolean) | (boolean)     | (boolean)     | (boolean)     |   (float)
+    [YYYY/MM/DD | [Wh/s]                | [degres]  | [degrees] |           |               |               |               |   [meters]
       HH:MM:SS]
 
 
@@ -51,6 +51,7 @@ import os
 import shutil
 from haversine import haversine
 from scipy.stats import mode
+import re
 
 ### Constants
 battery_capacity = 70 #kWh
@@ -65,17 +66,13 @@ png_file_name = 'Time_vs_SOC.png'
 png_total_name = 'Daily_SOC.png'
 
 ### Change directories for each time running
-source_folder = "D:/Masters/Simulations/Simulation_2/Inputs/"
-destination_folder = "D:/Masters/Simulations/Simulation_2/Usable_Data/"
+source_folder = "D:/Masters/Simulations/Simulation_3/Inputs/"
+destination_folder = "D:/Masters/Simulations/Simulation_3/Usable_Data/"
 folder_prefix = "Vehicle_" 
 
-### Box coordinates - Stellenbosch Taxi Rank
-stop_location = [
-    (-33.932359, 18.857750),  
-    (-33.932359, 18.859046),       
-    (-33.933172, 18.859046),      
-    (-33.933172, 18.857750)       
-]
+pattern = r"Vehicle_(\d+)"
+
+
 
 ### Constants
 specified_length = 86400 # number of seconds in a day
@@ -105,25 +102,23 @@ def get_last_two_values_as_strings(directory_path):
     
     return last_two_values_array
 
-### General Functions
-def is_point_in_stop(point):
-    lat, lon = point
-    latitudes = [coord[0] for coord in stop_location]
-    longitudes = [coord[1] for coord in stop_location]
-    min_lat, max_lat = min(latitudes), max(latitudes)
-    min_lon, max_lon = min(longitudes), max(longitudes)
+def extract_numbers_from_subfolders(folder_path):
+    numbers_list = []
+    for folder_name in os.listdir(folder_path):
+        subfolder_path = os.path.join(folder_path, folder_name)
+        if os.path.isdir(subfolder_path):
+            match = re.search(pattern, folder_name)
+            if match:
+                number = int(match.group(1))
+                numbers_list.append(number)
+    return numbers_list
     
-    if min_lat <= lat <= max_lat and min_lon <= lon <= max_lon:
-        return True
-    else:
-        return False
-    
-def count_20_minutes(column_stop):
+def count_minutes(column_stop, minutes):
     empty_stop = np.empty_like(column_stop)
     first_true_flag = 1
     counter_true = 0
 
-    ### Check if vehicle has stopped for more than 20 minutes
+    ### Check if vehicle has stopped for more than the specified number of minutes
     for j in range(0, len(column_stop) - 1):
 
         ### Counts the number of true values starting at the specific index 
@@ -136,38 +131,29 @@ def count_20_minutes(column_stop):
 
         ### If false, 20_min_stop is automatically false
         if column_stop[j] == False:
-            #merged_data.loc[j, '20_Min_Stop'] = False
             empty_stop[j] = False
             counter_true = 0
 
         if column_stop[j] != column_stop[j + 1]:
             first_true_flag = 1
-            if counter_true >= 1200:
+            if counter_true >= (minutes * 60):
                 for m in range(current_index, current_index + counter_true + 1):
-                    #merged_data.loc[m, '20_Min_Stop'] = True
                     empty_stop[m] = True
                 counter_true = 0
-            elif counter_true < 1200 and column_stop[j + 1] == False:
+            elif counter_true < (minutes * 60) and column_stop[j + 1] == False:
                 for g in range(current_index, current_index + counter_true + 1):
-                    #merged_data.loc[g, '20_Min_Stop'] = Fals
                     empty_stop[g] = False
-                counter_true = 0            
+                counter_true = 0
+
     else:
-        if counter_true >= 1200:
+        if counter_true >= (minutes * 60):
             for m in range(current_index, current_index + counter_true + 2):
-                #merged_data.loc[m, '20_Min_Stop'] = True
                 empty_stop[m] = True
 
     return empty_stop
 
 
-def is_point_at_home(row, most_common):
-    target_latitude = most_common[0]
-    target_longitude = most_common[1]
-    point_latitude = row['Latitude']
-    point_longitude = row['Longitude']
-    distance = haversine((target_latitude, target_longitude), (point_latitude, point_longitude), unit = 'm')
-    return distance <= 150  
+
 
 
 ### Create output folders to save everything to
@@ -178,13 +164,15 @@ copy_folder_structure(source_folder, destination_folder)
 ### Change based on simulation
 num_folders = count_folders_with_prefix(source_folder, folder_prefix)
 
+vehicle_numbers = extract_numbers_from_subfolders(source_folder)
+
 ### Iterate through each vehicle in directory
-for i in range(1, num_folders + 1):
+for i in range(0, num_folders):
 
     ### Get the number of days within that folder
     ### No need to change for different smulation
-    new_folder = source_folder + folder_prefix + str(i) + '/'
-    new_folder_prefix = folder_prefix + str(i) + '_' # Vehicle_i_
+    new_folder = source_folder + folder_prefix + str(vehicle_numbers[i]) + '/'
+    new_folder_prefix = folder_prefix + str(vehicle_numbers[i]) + '_' # Vehicle_i_
     num_days = count_folders_with_prefix(new_folder, new_folder_prefix)
 
     day_num_array = get_last_two_values_as_strings(new_folder)
@@ -298,12 +286,12 @@ for i in range(1, num_folders + 1):
             plt.plot(merged_data_minute['Time_of_Day'], merged_data_minute['SOC'])
             plt.xlabel('Time of Day')
             plt.ylabel('SOC')
-            plt.title(f'Vehicle {i} - Day {k}')
+            plt.title(f'Vehicle {vehicle_numbers[i]} - Day {day_num_array[k - 1]}')
             plt.xticks(rotation=45, ha='right')
 
             ### Save the data to Outputs location folder
             # Create the file path
-            folder_save_path = destination_folder + folder_prefix + str(i) + '/' + new_folder_prefix + day_num_array[k - 1] + '/'
+            folder_save_path = destination_folder + folder_prefix + str(vehicle_numbers[i]) + '/' + new_folder_prefix + day_num_array[k - 1] + '/'
             # Save secondly and minuely data
             full_save_path_1 = folder_save_path + csv_save_name_1
             full_save_path_2 = folder_save_path + csv_save_name_2
@@ -312,14 +300,14 @@ for i in range(1, num_folders + 1):
             # Save PNG
             png_full_path = folder_save_path + png_file_name
             plt.savefig(png_full_path, dpi=300, bbox_inches='tight')
-            print(f'Vehicle {i} - Day {k} = Done')
+            print(f'Vehicle {vehicle_numbers[i]} - Day {day_num_array[k - 1]} = Done')
             plt.close()
 
             ### Save data to be plotted
             data_list.append(merged_data_minute)
         else:
-            print(f'Vehicle {i} - Day {k} = Did not drive')
-            folder_save_path = destination_folder + folder_prefix + str(i) + '/' + new_folder_prefix + day_num_array[k - 1] + '/'
+            print(f'Vehicle {vehicle_numbers[i]} - Day {day_num_array[k - 1]} = Did not drive')
+            folder_save_path = destination_folder + folder_prefix + str(vehicle_numbers[i]) + '/' + new_folder_prefix + day_num_array[k - 1] + '/'
             shutil.rmtree(folder_save_path)
     
     ### Plot each days SOC per vehicle
@@ -332,7 +320,7 @@ for i in range(1, num_folders + 1):
     plt.legend()
     plt.xticks(rotation=45, ha='right')
 
-    png_save_path = destination_folder + folder_prefix + str(i) + '/'
+    png_save_path = destination_folder + folder_prefix + str(vehicle_numbers[i]) + '/'
     png_total_path = png_save_path + png_total_name
     plt.savefig(png_total_path, dpi=300, bbox_inches='tight')
     plt.close()
@@ -346,7 +334,7 @@ for i in range(1, num_folders + 1):
 print('Reframing data points')
 
         
-destination_folder = "D:/Masters/Simulations/Simulation_2/Usable_Data/"
+destination_folder = "D:/Masters/Simulations/Simulation_3/Usable_Data/"
 days = [str(num).zfill(2) for num in range(1, 32)]  # Days in the month
 
 
@@ -357,12 +345,12 @@ total_shift = 4 * 60 * 60
 num_folders = count_folders_with_prefix(destination_folder, folder_prefix)
 
 ### Iterate through each vehicle in directory
-for i in range(1, num_folders + 1):
+for i in range(0, num_folders):
 
     ### Get the number of days within that folder
     ### No need to change for different smulation
-    new_folder = destination_folder + folder_prefix + str(i) + '/'
-    new_folder_prefix = folder_prefix + str(i) + '_' # Vehicle_i_
+    new_folder = destination_folder + folder_prefix + str(vehicle_numbers[i]) + '/'
+    new_folder_prefix = folder_prefix + str(vehicle_numbers[i]) + '_' # Vehicle_i_
     num_days = count_folders_with_prefix(new_folder, new_folder_prefix)
 
     day_num_array = get_last_two_values_as_strings(new_folder)
@@ -417,10 +405,6 @@ for i in range(1, num_folders + 1):
             vehicle_day = pd.concat([day_1_filtered, day_2_filtered])
 
             vehicle_day['Time_of_Day'] = pd.to_datetime(vehicle_day['Time_of_Day'])
-            home_charging_location = vehicle_day[(vehicle_day['Time_of_Day'].dt.time >= pd.to_datetime('20:00:00').time()) |
-                 (vehicle_day['Time_of_Day'].dt.time <= pd.to_datetime('03:59:59').time())]
-
-            most_common_combination = home_charging_location.groupby(['Latitude', 'Longitude']).size().idxmax()
 
             vehicle_day = vehicle_day.drop(['Battery_Capacity', 'SOC'], axis = 1)
             vehicle_day = vehicle_day.reset_index(drop=True)
@@ -428,17 +412,10 @@ for i in range(1, num_folders + 1):
             x = vehicle_day['Stopped']
             ### Determine if vehicle is avaliable to charge
             # Determine 20 minute stop classification
-            vehicle_day['20_Min_Stop'] = count_20_minutes(vehicle_day['Stopped'])
+            vehicle_day['20_Min_Stop'] = count_minutes(vehicle_day['Stopped'], 20)
+            vehicle_day['10_Min_Stop'] = count_minutes(vehicle_day['Stopped'], 10)
+            vehicle_day['5_Min_Stop'] = count_minutes(vehicle_day['Stopped'], 5)
 
-            # Check to see if vehicle has stopped in specified location
-            vehicle_day['Hub_Location'] = vehicle_day[['Latitude', 'Longitude']].apply(lambda x: is_point_in_stop(x), axis=1)
-
-            # Create Available_Charging column - is the vehicle able to charge
-            vehicle_day['Available_Charging'] = vehicle_day['Hub_Location'] & vehicle_day['20_Min_Stop']
-
-            vehicle_day['HC_Location'] = vehicle_day[['Latitude', 'Longitude']].apply(lambda x: is_point_at_home(x, most_common_combination), axis=1)
-
-            vehicle_day['Home_Charging'] = vehicle_day['HC_Location'] & vehicle_day['20_Min_Stop']
 
             # Calculate the distance for each row in the DataFrame
             vehicle_day['Distance'] = 0
@@ -469,10 +446,8 @@ for i in range(1, num_folders + 1):
                 'Longitude': lambda x: x.mode().iloc[0],  
                 'Stopped': lambda x: x.mode().iloc[0],  
                 '20_Min_Stop': lambda x: x.mode().iloc[0],  
-                'Hub_Location': lambda x: x.mode().iloc[0],  
-                'Available_Charging': lambda x: x.mode().iloc[0],  
-                'HC_Location': lambda x: x.mode().iloc[0],  
-                'Home_Charging': lambda x: x.mode().iloc[0],  
+                '10_Min_Stop': lambda x: x.mode().iloc[0],  
+                '5_Min_Stop': lambda x: x.mode().iloc[0],   
                 'Distance': 'sum'
             })
 
